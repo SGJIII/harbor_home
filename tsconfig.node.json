@@ -11,5 +11,5 @@
     "strict": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "netlify/**/*.ts", "netlify/**/*.mts", "db/**/*.ts", "drizzle.config.ts", "tests/**/*.ts", "src/lib/bookingRules.ts", "src/lib/hostSchedule.ts", "src/types.ts"]
+  "include": ["vite.config.ts", "netlify/**/*.ts", "netlify/**/*.mts", "db/**/*.ts", "drizzle.config.ts", "tests/**/*.ts", "src/data/propertyPhotos.ts", "src/lib/bookingRules.ts", "src/lib/hostSchedule.ts", "src/types.ts"]
 }

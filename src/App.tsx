@@ -49,6 +49,7 @@ import {
 } from "react-router-dom";
 import { isDemoMode } from "./auth";
 import { demoState, demoWeekend } from "./data/demo";
+import { propertyPhotoSets } from "./data/propertyPhotos";
 import {
   contiguousStayLength,
   findFirstFallback,
@@ -310,6 +311,17 @@ function RoomCard({ room, property, range, onBook }: { room: Room; property: Pro
   );
 }
 
+function PropertyPhotoGallery({ property }: { property: Property }) {
+  const photoSet = propertyPhotoSets[property.slug];
+  if (!photoSet) return null;
+  return <figure className="property-gallery">
+    <div className="property-photo-grid">
+      {photoSet.photos.map((photo) => <a key={photo.src} href={photo.src} target="_blank" rel="noreferrer" aria-label={`Open full-size photo: ${photo.alt}`}><img src={photo.src} alt={photo.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" /></a>)}
+    </div>
+    <figcaption><span>Listing photos hosted by {photoSet.sourceName}</span><a href={photoSet.sourceUrl} target="_blank" rel="noreferrer">View original listing <ExternalLink size={12} /></a></figcaption>
+  </figure>;
+}
+
 function BookingModal({ room, property, range, onClose }: { room: Room; property: Property; range: { checkIn: string; checkOut: string }; onClose: () => void }) {
   const { state, setState, currentUser, showToast } = useApp();
   const [partySize, setPartySize] = useState(1);
@@ -405,6 +417,7 @@ function BookingPage() {
   const error = property ? validateStayRange(range) : null;
 
   const propertyPanel = property ? (() => {
+    const photoSet = propertyPhotoSets[property.slug];
     const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
     const outsideWindow = propertyAvailabilityError(property, range);
     const availabilityLabel = formatAvailabilityWindow(property);
@@ -417,6 +430,7 @@ function BookingPage() {
     const openCount = outsideWindow || blocked ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0 && !gatheringRoomIds.has(room.id)).length;
     return <section className="property-panel">
       <div className={`property-cover cover-${property.accent}`}>
+        {photoSet && <img className="property-cover-photo" src={photoSet.photos[0].src} alt="" decoding="async" referrerPolicy="no-referrer" />}
         <div className="cover-copy"><span>{property.eyebrow}</span><h2>{property.name}</h2><p>{property.summary}</p>{availabilityLabel && <small><CalendarDays size={13} /> {availabilityLabel}</small>}</div>
         <div className="cover-house"><House size={64} strokeWidth={1.1} /><span><i /> {openCount} open</span></div>
       </div>
@@ -425,6 +439,7 @@ function BookingPage() {
           <div><MapPin size={16} /><span><strong>{property.generalLocation}</strong><small>{property.address}</small></span></div>
           {property.sourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label} <ExternalLink size={14} /></a>)}
         </div>
+        <PropertyPhotoGallery property={property} />
         <div className="occupancy-strip">
           <span className="occupancy-icon"><Users size={17} /></span>
           <div><strong>Who’s around for these dates?</strong><span>{outsideWindow ? "Choose dates inside this property’s availability window." : otherRooms > 0 ? `Other guests already have ${otherRooms} room${otherRooms === 1 ? "" : "s"} reserved.` : "No other guest rooms are reserved yet."}</span></div>
@@ -447,8 +462,9 @@ function BookingPage() {
         <div className="booking-step-heading"><span>1</span><div><small>First, choose a home</small><h2 id="property-step-title">Where would you like to stay?</h2></div></div>
         <div className="property-choice-grid">{activeProperties.map((choice) => {
           const active = choice.id === selectedPropertyId;
+          const photoSet = propertyPhotoSets[choice.slug];
           return <button type="button" key={choice.id} aria-pressed={active} className={`property-choice choice-${choice.accent} ${active ? "selected" : ""}`} onClick={() => selectProperty(choice)}>
-            <span className="property-choice-icon"><House size={24} /></span><span className="property-choice-copy"><small>{choice.eyebrow}</small><strong>{choice.name}</strong><span><MapPin size={13} /> {choice.generalLocation}</span><em>{formatAvailabilityWindow(choice) ?? "Dates available year-round"}</em></span><span className="property-choice-action">{active ? <Check size={18} /> : <ArrowRight size={18} />}</span>
+            {photoSet ? <span className="property-choice-photo"><img src={photoSet.photos[0].src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /></span> : <span className="property-choice-icon"><House size={24} /></span>}<span className="property-choice-copy"><small>{choice.eyebrow}</small><strong>{choice.name}</strong><span><MapPin size={13} /> {choice.generalLocation}</span><em>{formatAvailabilityWindow(choice) ?? "Dates available year-round"}</em></span><span className="property-choice-action">{active ? <Check size={18} /> : <ArrowRight size={18} />}</span>
           </button>;
         })}</div>
       </section>
