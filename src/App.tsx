@@ -199,7 +199,7 @@ function LandingPage() {
       <section className="host-welcome shell-width" aria-labelledby="host-welcome-title">
         <div className="host-photo-collage">
           <img className="host-photo-sunset" src={personalPhotos.sunset.src} alt={personalPhotos.sunset.alt} />
-          <img className="host-photo-beach" src={personalPhotos.beach.src} alt={personalPhotos.beach.alt} loading="lazy" />
+          <img className="host-photo-playful" src={personalPhotos.playful.src} alt={personalPhotos.playful.alt} loading="lazy" />
         </div>
         <div className="host-welcome-copy">
           <p className="eyebrow"><Sparkles size={14} /> FROM SAM &amp; LISA</p>

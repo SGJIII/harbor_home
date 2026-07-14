@@ -3,9 +3,9 @@ export const personalPhotos = {
     src: "/images/personal/sam-lisa-sunset.webp",
     alt: "Sam and Lisa together at sunset",
   },
-  beach: {
-    src: "/images/personal/sam-lisa-beach.webp",
-    alt: "Sam and Lisa by the beach",
+  playful: {
+    src: "/images/personal/sam-lisa-playful.webp",
+    alt: "Sam and Lisa sharing a playful moment",
   },
   dog: {
     src: "/images/personal/dog-at-home.webp",
