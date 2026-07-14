@@ -82,6 +82,10 @@ export function isAdminEmail(email: string): boolean {
   return admins.has(normalizeEmail(email));
 }
 
+export function roleForEmail(email: string): AppUser["role"] {
+  return isAdminEmail(email) ? "admin" : "guest";
+}
+
 export async function verifySession(request: Request, sql: NeonQueryFunction<false, false>): Promise<AppUser> {
   const token = readCookie(request, sessionCookieName);
   if (!token || token.length < 32) {
@@ -97,7 +101,14 @@ export async function verifySession(request: Request, sql: NeonQueryFunction<fal
   const row = rows[0] as (AppUser & { session_id: string }) | undefined;
   if (!row) throw new Response(JSON.stringify({ error: "Your sign-in expired. Request a new code." }), { status: 401 });
   await sql`UPDATE app_sessions SET last_seen_at = now() WHERE id = ${row.session_id}::uuid AND last_seen_at < now() - interval '1 hour'`;
-  return { id: row.id, email: row.email, name: row.name, relationship: row.relationship, role: row.role, status: row.status };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    relationship: row.relationship,
+    role: roleForEmail(row.email),
+    status: row.status,
+  };
 }
 
 export function requireActive(user: AppUser) {
@@ -106,7 +117,9 @@ export function requireActive(user: AppUser) {
 
 export function requireAdmin(user: AppUser) {
   requireActive(user);
-  if (user.role !== "admin") throw new Response(JSON.stringify({ error: "Host access is required." }), { status: 403 });
+  if (user.role !== "admin" || !isAdminEmail(user.email)) {
+    throw new Response(JSON.stringify({ error: "Host access is required." }), { status: 403 });
+  }
 }
 
 export function tokenHash(token: string): string {

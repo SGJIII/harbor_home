@@ -1,15 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearSessionCookie,
+  isAdminEmail,
   loginCodeHash,
   normalizeEmail,
   readCookie,
+  requireAdmin,
+  roleForEmail,
   sessionCookie,
   sessionTokenHash,
+  type AppUser,
 } from "../netlify/functions/lib/auth.mts";
 import { emailDeliveryDiagnostic, emailDeliveryErrorMessage, normalizeGmailAppPassword } from "../netlify/functions/lib/email.mts";
 
 const secret = "test-secret-that-is-longer-than-thirty-two-characters";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("passwordless authentication security", () => {
   it("normalizes email addresses before hashing", () => {
@@ -58,5 +66,28 @@ describe("passwordless authentication security", () => {
     expect(emailDeliveryDiagnostic(error)).toEqual({ code: "EAUTH", responseCode: "535", command: "AUTH PLAIN" });
     expect(emailDeliveryErrorMessage(error)).toContain("new 16-character Google app password");
     expect(emailDeliveryErrorMessage(error)).not.toContain("sensitive provider detail");
+  });
+
+  it("derives host access only from the configured Sam and Lisa email addresses", () => {
+    vi.stubEnv("ADMIN_EMAILS", "samueljoh@gmail.com,lisasboehm@gmail.com");
+
+    expect(isAdminEmail(" SamuelJoh@GMAIL.com ")).toBe(true);
+    expect(roleForEmail("lisasboehm@gmail.com")).toBe("admin");
+    expect(roleForEmail("friend@example.com")).toBe("guest");
+  });
+
+  it("rejects a forged database admin role for an email outside the host allowlist", () => {
+    vi.stubEnv("ADMIN_EMAILS", "samueljoh@gmail.com,lisasboehm@gmail.com");
+    const outsider: AppUser = {
+      id: "outsider",
+      email: "friend@example.com",
+      name: "Friend",
+      role: "admin",
+      status: "active",
+      relationship: "Friend",
+    };
+
+    expect(() => requireAdmin(outsider)).toThrow(Response);
+    expect(() => requireAdmin({ ...outsider, email: "samueljoh@gmail.com" })).not.toThrow();
   });
 });
