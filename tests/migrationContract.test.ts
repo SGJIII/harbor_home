@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(new URL("../drizzle/0001_family_booking.sql", import.meta.url), "utf8");
 const authMigration = readFileSync(new URL("../drizzle/0002_email_code_auth.sql", import.meta.url), "utf8");
+const netlifyConfig = readFileSync(new URL("../netlify.toml", import.meta.url), "utf8");
 
 describe("database booking contract", () => {
   it("uses checkout-exclusive exclusion constraints", () => {
@@ -31,5 +32,9 @@ describe("database booking contract", () => {
     expect(verification).toContain("SET consumed_at = now()");
     expect(verification.indexOf("SET consumed_at = now()")).toBeLessThan(verification.indexOf("INSERT INTO app_sessions"));
     expect(authMigration).toContain("token_hash text NOT NULL UNIQUE");
+  });
+
+  it("does not rewrite the API custom route away from its function", () => {
+    expect(netlifyConfig).not.toContain("/.netlify/functions/api/:splat");
   });
 });
