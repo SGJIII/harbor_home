@@ -149,6 +149,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .cover-copy > span { font-size: 9px; letter-spacing: .17em; font-weight: 850; opacity: .8; }
 .cover-copy h2 { font-family: Georgia, serif; font-weight: 500; font-size: 41px; margin: 12px 0 10px; }
 .cover-copy p { max-width: 520px; margin: 0; color: rgba(255,255,255,.78); line-height: 1.55; font-size: 14px; }
+.cover-copy small { display: flex; align-items: center; gap: 6px; margin-top: 14px; color: rgba(255,255,255,.88); font-size: 11px; font-weight: 750; }
 .cover-house { width: 165px; height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; position: relative; z-index: 2; }
 .cover-house > span { display: flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.26); border-radius: 999px; background: rgba(255,255,255,.12); font-size: 10px; font-weight: 800; }
 .cover-house i { width: 7px; height: 7px; border-radius: 50%; background: #bce4c0; }

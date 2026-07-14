@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(new URL("../drizzle/0001_family_booking.sql", import.meta.url), "utf8");
 const authMigration = readFileSync(new URL("../drizzle/0002_email_code_auth.sql", import.meta.url), "utf8");
+const availabilityMigration = readFileSync(new URL("../drizzle/0003_property_booking_windows.sql", import.meta.url), "utf8");
 const netlifyConfig = readFileSync(new URL("../netlify.toml", import.meta.url), "utf8");
 
 describe("database booking contract", () => {
@@ -23,6 +24,17 @@ describe("database booking contract", () => {
   it("never makes the living-room couch an ADU fallback", () => {
     const fallbackSeed = migration.slice(migration.lastIndexOf("INSERT INTO room_fallbacks"));
     expect(fallbackSeed).not.toContain("30000000-0000-4000-8000-000000000004");
+  });
+
+  it("enforces property booking windows in the database", () => {
+    expect(availabilityMigration).toContain("booking_property_window_before_write");
+    expect(availabilityMigration).toContain("NEW.check_in < v_available_from");
+    expect(availabilityMigration).toContain("NEW.check_out > v_available_until");
+  });
+
+  it("keeps Costa Rica rooms out of priority displacement", () => {
+    expect(availabilityMigration).toContain("DELETE FROM room_fallbacks");
+    expect(availabilityMigration).toContain("DELETE FROM property_priorities");
   });
 
   it("verifies one-time codes and creates hashed application sessions atomically", () => {

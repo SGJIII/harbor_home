@@ -1,0 +1,47 @@
+{
+  "$schemaVersion": 1,
+  "slug": "second-getaway",
+  "name": "Luna",
+  "generalLocation": "Playa Pelada, Nosara, Costa Rica",
+  "address": "Playa Pelada, Provincia de Guanacaste, Costa Rica",
+  "timezone": "America/Costa_Rica",
+  "availableFrom": "2027-02-15",
+  "availableUntil": "2027-05-02",
+  "description": "An ocean-view villa near Playa Pelada with an infinity pool, two family-bookable rooms, and a third room reserved for the hosts.",
+  "sourceLinks": [
+    {
+      "type": "airbnb",
+      "label": "View Airbnb listing",
+      "url": "https://www.airbnb.com/rooms/54020123"
+    }
+  ],
+  "images": [],
+  "maximumTotalOccupancy": 6,
+  "displacementPolicy": "No priority displacement or fallback moves at this property.",
+  "rooms": [
+    {
+      "slug": "queen-loft",
+      "name": "Queen loft",
+      "description": "An airy queen-bed loft with access to the main-floor full bathroom.",
+      "bed": "Queen bed",
+      "capacity": 2,
+      "bathroom": "Shared main-floor full bath",
+      "amenities": ["Loft", "Queen bed", "Ocean-view villa", "Shared infinity pool"],
+      "status": "active",
+      "fallbackRoomSlugs": []
+    },
+    {
+      "slug": "lower-king",
+      "name": "Lower-level king room",
+      "description": "A king bedroom below the main floor, sharing the downstairs full bathroom.",
+      "bed": "King bed",
+      "capacity": 2,
+      "bathroom": "Shared downstairs full bath",
+      "amenities": ["King bed", "Lower level", "Ocean-view villa", "Shared infinity pool"],
+      "status": "active",
+      "fallbackRoomSlugs": []
+    }
+  ],
+  "hostReservedSpaces": ["The other king bedroom"],
+  "authorizedImages": []
+}

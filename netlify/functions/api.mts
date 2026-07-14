@@ -51,6 +51,20 @@ const dateRangeSchema = z.object({
   checkOut: z.iso.date(),
 });
 
+type PropertyWindowRow = { available_from: unknown; available_until: unknown };
+
+function dateOnlyValue(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+function outsidePropertyWindow(row: PropertyWindowRow, checkIn: string, checkOut: string) {
+  const availableFrom = dateOnlyValue(row.available_from);
+  const availableUntil = dateOnlyValue(row.available_until);
+  return Boolean((availableFrom && checkIn < availableFrom) || (availableUntil && checkOut > availableUntil));
+}
+
 async function loadState(sql: NeonQueryFunction<false, false>, user: AppUser) {
   const isAdmin = user.role === "admin";
   const [categoryRows, profileRows, membershipRows, propertyRows, roomRows, fallbackRows, bookingRows, blockRows, blockCategoryRows, priorityRows, eventRows, eventRoomRows, eventAccessRows, rsvpRows, rsvpRoomRows, notificationRows, auditRows] = await Promise.all([
@@ -83,12 +97,12 @@ async function loadState(sql: NeonQueryFunction<false, false>, user: AppUser) {
   return {
     categories: (categoryRows as Array<Record<string, string>>).map((row) => ({ id: row.id, name: row.name, description: row.description, color: row.color })),
     profiles: (profileRows as Array<Record<string, string>>).map((row) => ({ id: row.id, email: row.email, name: row.name, relationship: row.relationship, status: row.status, role: row.role, categoryIds: memberships.filter((item) => item.profile_id === row.id).map((item) => item.category_id) })),
-    properties: (propertyRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, slug: row.slug, name: row.name, eyebrow: row.eyebrow, generalLocation: row.general_location, address: row.address, timezone: row.timezone, summary: row.summary, sourceLinks: row.source_links, roomIds: roomsByProperty.filter((room) => room.property_id === row.id).map((room) => room.id), status: row.status, accent: row.accent })),
+    properties: (propertyRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, slug: row.slug, name: row.name, eyebrow: row.eyebrow, generalLocation: row.general_location, address: row.address, timezone: row.timezone, availableFrom: dateOnlyValue(row.available_from), availableUntil: dateOnlyValue(row.available_until), summary: row.summary, sourceLinks: row.source_links, roomIds: roomsByProperty.filter((room) => room.property_id === row.id).map((room) => room.id), status: row.status, accent: row.accent })),
     rooms: roomsByProperty.map((row) => ({ id: row.id, propertyId: row.property_id, name: row.name, description: row.description, bed: row.bed, capacity: row.capacity, bathroom: row.bathroom, amenities: row.amenities, fallbackIds: fallbacks.filter((item) => item.source_room_id === row.id).map((item) => item.fallback_room_id), status: row.status })),
-    bookings: (bookingRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, userId: isAdmin ? row.profile_id : row.visible_profile_id, propertyId: row.property_id, roomId: row.room_id, checkIn: row.check_in, checkOut: row.check_out, partySize: row.party_size, status: row.status, eventId: row.event_id ?? undefined, movedFromRoomId: row.moved_from_room_id ?? undefined, createdAt: row.created_at })),
-    blocks: (blockRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, propertyId: row.property_id, checkIn: row.check_in, checkOut: row.check_out, reason: row.reason, categoryIds: (blockCategoryRows as Array<Record<string, string>>).filter((item) => item.block_id === row.id).map((item) => item.category_id) })),
+    bookings: (bookingRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, userId: isAdmin ? row.profile_id : row.visible_profile_id, propertyId: row.property_id, roomId: row.room_id, checkIn: dateOnlyValue(row.check_in), checkOut: dateOnlyValue(row.check_out), partySize: row.party_size, status: row.status, eventId: row.event_id ?? undefined, movedFromRoomId: row.moved_from_room_id ?? undefined, createdAt: row.created_at })),
+    blocks: (blockRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, propertyId: row.property_id, checkIn: dateOnlyValue(row.check_in), checkOut: dateOnlyValue(row.check_out), reason: row.reason, categoryIds: (blockCategoryRows as Array<Record<string, string>>).filter((item) => item.block_id === row.id).map((item) => item.category_id) })),
     priorityRules: (priorityRows as Array<Record<string, unknown>>).map((row) => ({ id: `${row.property_id}:${row.category_id}`, propertyId: row.property_id, categoryId: row.category_id, rank: row.rank })),
-    events: (eventRows as Array<Record<string, unknown>>).map((row) => { const canSee = isAdmin || eventAccessList.some((item) => item.event_id === row.id && item.profile_id === user.id); return { id: row.id, slug: canSee ? row.slug : `held-${row.id}`, propertyId: row.property_id, title: canSee ? row.title : "Private gathering", description: canSee ? row.description : "", checkIn: row.check_in, checkOut: row.check_out, roomIds: eventRooms.filter((item) => item.event_id === row.id).map((item) => item.room_id), status: row.status, inviteToken: "", rsvps: canSee ? rsvps.filter((item) => item.event_id === row.id).map((item) => ({ userId: item.profile_id, status: item.status, partySize: item.party_size, roomIds: rsvpRooms.filter((room) => room.event_id === row.id && room.profile_id === item.profile_id).map((room) => room.room_id) })) : [] }; }),
+    events: (eventRows as Array<Record<string, unknown>>).map((row) => { const canSee = isAdmin || eventAccessList.some((item) => item.event_id === row.id && item.profile_id === user.id); return { id: row.id, slug: canSee ? row.slug : `held-${row.id}`, propertyId: row.property_id, title: canSee ? row.title : "Private gathering", description: canSee ? row.description : "", checkIn: dateOnlyValue(row.check_in), checkOut: dateOnlyValue(row.check_out), roomIds: eventRooms.filter((item) => item.event_id === row.id).map((item) => item.room_id), status: row.status, inviteToken: "", rsvps: canSee ? rsvps.filter((item) => item.event_id === row.id).map((item) => ({ userId: item.profile_id, status: item.status, partySize: item.party_size, roomIds: rsvpRooms.filter((room) => room.event_id === row.id && room.profile_id === item.profile_id).map((room) => room.room_id) })) : [] }; }),
     notifications: (notificationRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, userId: row.profile_id, title: row.title, message: row.message, kind: row.kind, read: row.read, createdAt: row.created_at })),
     audit: (auditRows as Array<Record<string, unknown>>).map((row) => ({ id: row.id, action: row.action, actorName: row.actor_name ?? "System", detail: typeof row.detail === "object" ? JSON.stringify(row.detail) : String(row.detail ?? ""), createdAt: row.created_at })),
   };
@@ -192,6 +206,9 @@ async function handle(request: Request) {
   if (request.method === "POST" && path === "bookings") {
     requireActive(user);
     const data = await body(request, dateRangeSchema.extend({ roomId: z.uuid(), partySize: z.number().int().min(1).max(30) }));
+    const propertyWindowRows = await sql`SELECT p.available_from, p.available_until FROM properties p JOIN rooms r ON r.property_id = p.id WHERE r.id = ${data.roomId}::uuid`;
+    const propertyWindow = propertyWindowRows[0] as PropertyWindowRow | undefined;
+    if (propertyWindow && outsidePropertyWindow(propertyWindow, data.checkIn, data.checkOut)) return json({ error: "That property is not available for those dates." }, 409);
     const rows = await sql`SELECT book_standard(${user.id}, ${data.roomId}::uuid, ${data.checkIn}::date, ${data.checkOut}::date, ${data.partySize}) AS result`;
     const result = rows[0]?.result as { ok: boolean; error?: string } | undefined;
     if (!result?.ok) return json({ error: result?.error ?? "Booking could not be completed." }, 409);
@@ -260,9 +277,10 @@ async function handle(request: Request) {
   }
 
   if (request.method === "POST" && path === "admin/properties") {
-    const data = await body(request, z.object({ name: z.string().trim().min(2).max(120), generalLocation: z.string().trim().max(300).default(""), address: z.string().trim().max(500).default(""), timezone: z.string().trim().min(3).max(100).default("America/New_York"), summary: z.string().max(2_000).default("") }));
+    const data = await body(request, z.object({ name: z.string().trim().min(2).max(120), generalLocation: z.string().trim().max(300).default(""), address: z.string().trim().max(500).default(""), timezone: z.string().trim().min(3).max(100).default("America/New_York"), availableFrom: z.iso.date().nullable().default(null), availableUntil: z.iso.date().nullable().default(null), summary: z.string().max(2_000).default("") }));
+    if (data.availableFrom && data.availableUntil && data.availableUntil <= data.availableFrom) return json({ error: "The final checkout must be after the first check-in." }, 400);
     const slug = `${data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80)}-${randomBytes(3).toString("hex")}`;
-    const rows = await sql`INSERT INTO properties(slug, name, general_location, address, timezone, summary, status) VALUES (${slug}, ${data.name}, ${data.generalLocation}, ${data.address}, ${data.timezone}, ${data.summary}, 'draft') RETURNING id`;
+    const rows = await sql`INSERT INTO properties(slug, name, general_location, address, timezone, available_from, available_until, summary, status) VALUES (${slug}, ${data.name}, ${data.generalLocation}, ${data.address}, ${data.timezone}, ${data.availableFrom}::date, ${data.availableUntil}::date, ${data.summary}, 'draft') RETURNING id`;
     await sql`INSERT INTO audit_log(actor_id, action, subject_type, subject_id, detail) VALUES (${user.id}, 'property_created', 'property', ${String(rows[0].id)}, ${JSON.stringify(data)}::jsonb)`;
     return json({ ok: true, id: rows[0].id, slug }, 201);
   }
@@ -304,6 +322,9 @@ async function handle(request: Request) {
 
   if (request.method === "POST" && path === "admin/events") {
     const data = await body(request, dateRangeSchema.extend({ title: z.string().trim().min(2).max(160), description: z.string().max(2_000).default(""), propertyId: z.uuid(), roomIds: z.array(z.uuid()).min(1), publish: z.boolean().default(false) }));
+    const propertyWindowRows = await sql`SELECT available_from, available_until FROM properties WHERE id = ${data.propertyId}::uuid`;
+    const propertyWindow = propertyWindowRows[0] as PropertyWindowRow | undefined;
+    if (propertyWindow && outsidePropertyWindow(propertyWindow, data.checkIn, data.checkOut)) return json({ error: "That property is not available for those event dates." }, 409);
     const slug = `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80)}-${randomBytes(3).toString("hex")}`;
     const token = randomBytes(32).toString("base64url");
     const rows = await sql`INSERT INTO events(slug, property_id, title, description, check_in, check_out, created_by) VALUES (${slug}, ${data.propertyId}::uuid, ${data.title}, ${data.description}, ${data.checkIn}::date, ${data.checkOut}::date, ${user.id}) RETURNING id`;
@@ -364,8 +385,14 @@ async function handle(request: Request) {
 
   const propertyMatch = path.match(/^admin\/properties\/([0-9a-f-]+)$/i);
   if (request.method === "PATCH" && propertyMatch) {
-    const data = await body(request, z.object({ name: z.string().trim().min(2).max(120).optional(), generalLocation: z.string().max(300).optional(), address: z.string().max(500).optional(), timezone: z.string().max(100).optional(), summary: z.string().max(2_000).optional(), status: z.enum(["draft", "active"]).optional() }));
-    const rows = await sql`UPDATE properties SET name = COALESCE(${data.name ?? null}, name), general_location = COALESCE(${data.generalLocation ?? null}, general_location), address = COALESCE(${data.address ?? null}, address), timezone = COALESCE(${data.timezone ?? null}, timezone), summary = COALESCE(${data.summary ?? null}, summary), status = COALESCE(${data.status ?? null}::publish_status, status), version = version + 1, updated_at = now() WHERE id = ${propertyMatch[1]}::uuid RETURNING id`;
+    const data = await body(request, z.object({ name: z.string().trim().min(2).max(120).optional(), generalLocation: z.string().max(300).optional(), address: z.string().max(500).optional(), timezone: z.string().max(100).optional(), availableFrom: z.iso.date().nullable().optional(), availableUntil: z.iso.date().nullable().optional(), summary: z.string().max(2_000).optional(), status: z.enum(["draft", "active"]).optional() }));
+    const currentRows = await sql`SELECT available_from, available_until FROM properties WHERE id = ${propertyMatch[1]}::uuid`;
+    const current = currentRows[0] as PropertyWindowRow | undefined;
+    if (!current) return json({ error: "Property not found." }, 404);
+    const nextAvailableFrom = data.availableFrom === undefined ? dateOnlyValue(current.available_from) : data.availableFrom;
+    const nextAvailableUntil = data.availableUntil === undefined ? dateOnlyValue(current.available_until) : data.availableUntil;
+    if (nextAvailableFrom && nextAvailableUntil && nextAvailableUntil <= nextAvailableFrom) return json({ error: "The final checkout must be after the first check-in." }, 400);
+    const rows = await sql`UPDATE properties SET name = COALESCE(${data.name ?? null}, name), general_location = COALESCE(${data.generalLocation ?? null}, general_location), address = COALESCE(${data.address ?? null}, address), timezone = COALESCE(${data.timezone ?? null}, timezone), available_from = ${nextAvailableFrom}::date, available_until = ${nextAvailableUntil}::date, summary = COALESCE(${data.summary ?? null}, summary), status = COALESCE(${data.status ?? null}::publish_status, status), version = version + 1, updated_at = now() WHERE id = ${propertyMatch[1]}::uuid RETURNING id`;
     if (!rows[0]) return json({ error: "Property not found." }, 404);
     await sql`INSERT INTO audit_log(actor_id, action, subject_type, subject_id, detail) VALUES (${user.id}, 'property_updated', 'property', ${propertyMatch[1]}, ${JSON.stringify(data)}::jsonb)`;
     return json({ ok: true });

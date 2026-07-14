@@ -52,9 +52,11 @@ import { demoState, demoWeekend } from "./data/demo";
 import {
   contiguousStayLength,
   findFirstFallback,
+  formatAvailabilityWindow,
   formatDateRange,
   isProfileBlocked,
   nightsBetween,
+  propertyAvailabilityError,
   rangesOverlap,
   roomConflicts,
   validateStayRange,
@@ -282,14 +284,15 @@ function RoomCard({ room, property, range, onBook }: { room: Room; property: Pro
   const conflicts = roomConflicts(room.id, range, state.bookings);
   const eventHeld = state.events.some((event) => event.status === "published" && event.propertyId === property.id && event.roomIds.includes(room.id) && rangesOverlap(event, range));
   const blocked = isProfileBlocked(currentUser, property.id, range, state.blocks);
+  const outsideWindow = propertyAvailabilityError(property, range);
   const propertyRanks = state.priorityRules.filter((rule) => rule.propertyId === property.id);
   const highestRank = Math.max(0, ...propertyRanks.map((rule) => rule.rank));
   const userRank = Math.max(0, ...propertyRanks.filter((rule) => currentUser.categoryIds.includes(rule.categoryId)).map((rule) => rule.rank));
   const activeFallbacks = room.fallbackIds.map((id) => state.rooms.find((candidate) => candidate.id === id)).filter((candidate): candidate is Room => Boolean(candidate?.status === "active" && candidate.capacity));
   const canRequestPriority = conflicts.length > 0 && userRank > 0 && userRank === highestRank && activeFallbacks.length >= conflicts.length;
-  const unavailable = (conflicts.length > 0 && !canRequestPriority) || eventHeld || Boolean(blocked);
+  const unavailable = (conflicts.length > 0 && !canRequestPriority) || eventHeld || Boolean(blocked) || Boolean(outsideWindow);
   const draft = room.status === "draft" || room.capacity === null;
-  const status = draft ? "Details needed" : blocked ? blocked.reason : eventHeld ? "Private gathering" : canRequestPriority ? "Priority option" : unavailable ? "Booked" : "Available";
+  const status = draft ? "Details needed" : outsideWindow ? "Outside available dates" : blocked ? blocked.reason : eventHeld ? "Private gathering" : canRequestPriority ? "Priority option" : unavailable ? "Booked" : "Available";
 
   return (
     <article className={`room-card ${draft ? "room-draft" : ""}`}>
@@ -312,6 +315,8 @@ function BookingModal({ room, property, range, onClose }: { room: Room; property
   const confirm = async () => {
     const rangeError = validateStayRange(range);
     if (rangeError) return showToast(rangeError, "error");
+    const windowError = propertyAvailabilityError(property, range);
+    if (windowError) return showToast(windowError, "error");
     if (room.capacity && partySize > room.capacity) return showToast(`This room sleeps up to ${room.capacity}.`, "error");
     if (contiguousStayLength(state.bookings.filter((booking) => booking.userId === currentUser.id), range) > 7) return showToast("That would create a stay longer than seven nights.", "error");
     const block = isProfileBlocked(currentUser, property.id, range, state.blocks);
@@ -382,7 +387,16 @@ function BookingModal({ room, property, range, onClose }: { room: Room; property
 
 function BookingPage() {
   const { state, currentUser } = useApp();
-  const [range, setRange] = useState(demoWeekend);
+  const [range, setRange] = useState(() => {
+    const firstWindow = state.properties
+      .filter((property) => property.status === "active" && property.availableFrom)
+      .map((property) => property.availableFrom as string)
+      .sort()[0];
+    if (!firstWindow) return demoWeekend;
+    const checkout = new Date(`${firstWindow}T12:00:00`);
+    checkout.setDate(checkout.getDate() + 3);
+    return { checkIn: firstWindow, checkOut: checkout.toISOString().slice(0, 10) };
+  });
   const [selected, setSelected] = useState<{ room: Room; property: Property } | null>(null);
   const activeProperties = state.properties.filter((property) => property.status === "active");
   const error = validateStayRange(range);
@@ -398,11 +412,13 @@ function BookingPage() {
       <div className="property-stack">
         {activeProperties.map((property) => {
           const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
-          const openCount = rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0).length;
+          const outsideWindow = propertyAvailabilityError(property, range);
+          const availabilityLabel = formatAvailabilityWindow(property);
+          const openCount = outsideWindow ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0).length;
           return (
             <section className="property-panel" key={property.id}>
               <div className={`property-cover cover-${property.accent}`}>
-                <div className="cover-copy"><span>{property.eyebrow}</span><h2>{property.name}</h2><p>{property.summary}</p></div>
+                <div className="cover-copy"><span>{property.eyebrow}</span><h2>{property.name}</h2><p>{property.summary}</p>{availabilityLabel && <small><CalendarDays size={13} /> {availabilityLabel}</small>}</div>
                 <div className="cover-house"><House size={64} strokeWidth={1.1} /><span><i /> {openCount} open</span></div>
               </div>
               <div className="property-body">
@@ -517,7 +533,7 @@ function AdminProperties() {
     if (!isDemoMode) {
       try {
         const response = await apiRequest<{ propertyId: string; draft: { name: string; description: string; sourceUrl: string; sourceType: "zillow" | "airbnb" | "other" } }>("/admin/properties/import", { method: "POST", body: JSON.stringify({ url }) });
-        const property: Property = { id: response.propertyId, slug: `imported-${response.propertyId.slice(0, 8)}`, name: response.draft.name || "Imported property", eyebrow: "REVIEW NEEDED", generalLocation: "Location pending", address: "", timezone: "America/New_York", summary: response.draft.description || "Complete the imported details before publishing.", sourceLinks: [{ label: "Imported listing", url: response.draft.sourceUrl, type: response.draft.sourceType }], roomIds: [], status: "draft", accent: "dune" };
+        const property: Property = { id: response.propertyId, slug: `imported-${response.propertyId.slice(0, 8)}`, name: response.draft.name || "Imported property", eyebrow: "REVIEW NEEDED", generalLocation: "Location pending", address: "", timezone: "America/New_York", availableFrom: null, availableUntil: null, summary: response.draft.description || "Complete the imported details before publishing.", sourceLinks: [{ label: "Imported listing", url: response.draft.sourceUrl, type: response.draft.sourceType }], roomIds: [], status: "draft", accent: "dune" };
         setState((current) => ({ ...current, properties: [...current.properties, property] }));
       } catch (error) { return showToast(error instanceof Error ? error.message : "Import failed.", "error"); }
     }
@@ -529,7 +545,7 @@ function AdminProperties() {
     const generalLocation = window.prompt("General location (shown to approved guests)") ?? "";
     let id: string = crypto.randomUUID(); let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     if (!isDemoMode) { try { const response = await apiRequest<{ id: string; slug: string }>("/admin/properties", { method: "POST", body: JSON.stringify({ name, generalLocation, address: "", timezone: "America/New_York", summary: "" }) }); id = response.id; slug = response.slug; } catch (error) { return showToast(error instanceof Error ? error.message : "Property creation failed.", "error"); } }
-    setState((current) => ({ ...current, properties: [...current.properties, { id, slug, name: name.trim(), eyebrow: "DETAILS NEEDED", generalLocation, address: "", timezone: "America/New_York", summary: "Complete the property details before publishing.", sourceLinks: [], roomIds: [], status: "draft", accent: "dune" }] }));
+    setState((current) => ({ ...current, properties: [...current.properties, { id, slug, name: name.trim(), eyebrow: "DETAILS NEEDED", generalLocation, address: "", timezone: "America/New_York", availableFrom: null, availableUntil: null, summary: "Complete the property details before publishing.", sourceLinks: [], roomIds: [], status: "draft", accent: "dune" }] }));
     showToast("Draft property created.");
   };
   const addRoom = async (propertyId: string) => {
@@ -543,13 +559,18 @@ function AdminProperties() {
   const editProperty = async (property: Property) => {
     const generalLocation = window.prompt("General location", property.generalLocation); if (generalLocation === null) return;
     const summary = window.prompt("Short description", property.summary); if (summary === null) return;
-    if (!isDemoMode) { try { await apiRequest(`/admin/properties/${property.id}`, { method: "PATCH", body: JSON.stringify({ generalLocation, summary }) }); } catch (error) { return showToast(error instanceof Error ? error.message : "Property update failed.", "error"); } }
-    setState((current) => ({ ...current, properties: current.properties.map((item) => item.id === property.id ? { ...item, generalLocation, summary } : item) }));
+    const availableFromInput = window.prompt("First available check-in (YYYY-MM-DD; blank for no start limit)", property.availableFrom ?? ""); if (availableFromInput === null) return;
+    const availableUntilInput = window.prompt("Last allowed checkout (YYYY-MM-DD; blank for no end limit)", property.availableUntil ?? ""); if (availableUntilInput === null) return;
+    const availableFrom = availableFromInput.trim() || null; const availableUntil = availableUntilInput.trim() || null;
+    if ((availableFrom && !/^\d{4}-\d{2}-\d{2}$/.test(availableFrom)) || (availableUntil && !/^\d{4}-\d{2}-\d{2}$/.test(availableUntil))) return showToast("Use YYYY-MM-DD for availability dates.", "error");
+    if (availableFrom && availableUntil && availableUntil <= availableFrom) return showToast("The final checkout must be after the first check-in.", "error");
+    if (!isDemoMode) { try { await apiRequest(`/admin/properties/${property.id}`, { method: "PATCH", body: JSON.stringify({ generalLocation, summary, availableFrom, availableUntil }) }); } catch (error) { return showToast(error instanceof Error ? error.message : "Property update failed.", "error"); } }
+    setState((current) => ({ ...current, properties: current.properties.map((item) => item.id === property.id ? { ...item, generalLocation, summary, availableFrom, availableUntil } : item) }));
     showToast("Property details updated.");
   };
   return <>
     <div className="admin-card import-card"><div className="card-heading"><div><span className="section-icon"><Import size={18} /></span><div><h2>Add from a listing link</h2><p>We’ll gather public details into a draft. Nothing publishes until you review it.</p></div></div></div><form className="import-form" onSubmit={importUrl}><Link2 size={18} /><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="Paste a Zillow or public Airbnb URL" aria-label="Property listing URL" /><button className="button button-ink">Import draft</button></form>{imported && <p className="import-result"><CircleAlert size={16} /> {imported}</p>}</div>
-    <div className="admin-card"><div className="card-heading"><div><span className="section-icon"><House size={18} /></span><div><h2>Properties &amp; rooms</h2><p>Draft spaces stay private and never receive fallback moves.</p></div></div><button className="button button-outline" onClick={newProperty}><Plus size={16} /> New property</button></div><div className="property-admin-list">{state.properties.map((property) => <article key={property.id}><div className={`mini-cover cover-${property.accent}`}><House size={28} /></div><div className="property-admin-copy"><div><h3>{property.name}</h3><span className={`status-badge ${property.status === "active" ? "status-open" : "status-draft"}`}>{property.status}</span></div><p>{property.generalLocation} · {state.rooms.filter((room) => room.propertyId === property.id && room.status === "active").length} live rooms</p><div className="draft-room-list">{state.rooms.filter((room) => room.propertyId === property.id).map((room) => <span key={room.id}>{room.name}<i className={room.status === "active" ? "ready" : ""}>{room.status}</i>{room.status === "draft" && <button onClick={() => completeRoom(room.id)}>Complete</button>}</span>)}<button className="inline-add" onClick={() => addRoom(property.id)}><Plus size={13} /> Add sleeping space</button></div></div><button className="icon-button" onClick={() => editProperty(property)} aria-label={`Edit ${property.name}`}><Settings2 size={18} /></button></article>)}</div></div>
+    <div className="admin-card"><div className="card-heading"><div><span className="section-icon"><House size={18} /></span><div><h2>Properties &amp; rooms</h2><p>Draft spaces stay private and never receive fallback moves.</p></div></div><button className="button button-outline" onClick={newProperty}><Plus size={16} /> New property</button></div><div className="property-admin-list">{state.properties.map((property) => <article key={property.id}><div className={`mini-cover cover-${property.accent}`}><House size={28} /></div><div className="property-admin-copy"><div><h3>{property.name}</h3><span className={`status-badge ${property.status === "active" ? "status-open" : "status-draft"}`}>{property.status}</span></div><p>{property.generalLocation} · {state.rooms.filter((room) => room.propertyId === property.id && room.status === "active").length} live rooms{formatAvailabilityWindow(property) ? ` · ${formatAvailabilityWindow(property)}` : ""}</p><div className="draft-room-list">{state.rooms.filter((room) => room.propertyId === property.id).map((room) => <span key={room.id}>{room.name}<i className={room.status === "active" ? "ready" : ""}>{room.status}</i>{room.status === "draft" && <button onClick={() => completeRoom(room.id)}>Complete</button>}</span>)}<button className="inline-add" onClick={() => addRoom(property.id)}><Plus size={13} /> Add sleeping space</button></div></div><button className="icon-button" onClick={() => editProperty(property)} aria-label={`Edit ${property.name}`}><Settings2 size={18} /></button></article>)}</div></div>
   </>;
 }
 

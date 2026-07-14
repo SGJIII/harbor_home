@@ -5,6 +5,8 @@
   "generalLocation": "Far Rockaway, Queens",
   "address": "6319 Ocean Ave S, Far Rockaway, NY 11692",
   "timezone": "America/New_York",
+  "availableFrom": "2027-06-01",
+  "availableUntil": null,
   "description": "A bright beachside home with room for the whole crew, steps from the ocean and boardwalk.",
   "sourceLinks": [
     {
@@ -30,33 +32,33 @@
       "slug": "downstairs",
       "name": "Downstairs guest room",
       "description": "A quiet main-house room with a full bathroom immediately next door.",
-      "bed": "Details needed",
-      "capacity": null,
+      "bed": "King bed",
+      "capacity": 2,
       "bathroom": "Full bath next door",
-      "amenities": ["Main house", "Near full bath"],
-      "status": "draft",
+      "amenities": ["King bed", "Main house", "Full bath next door"],
+      "status": "active",
       "fallbackRoomSlugs": []
     },
     {
       "slug": "second-spare",
-      "name": "Second spare bedroom",
-      "description": "A second private bedroom in the main house.",
-      "bed": "Details needed",
-      "capacity": null,
+      "name": "Fourth-floor queen room",
+      "description": "A private queen bedroom on the fourth floor of the main house.",
+      "bed": "Queen bed",
+      "capacity": 2,
       "bathroom": "Shared bath",
-      "amenities": ["Main house"],
-      "status": "draft",
+      "amenities": ["Queen bed", "Main house", "Fourth floor"],
+      "status": "active",
       "fallbackRoomSlugs": []
     },
     {
       "slug": "living-couch",
       "name": "Main house couch",
-      "description": "A simple sleeping spot in the main living room.",
-      "bed": "Living-room couch",
-      "capacity": null,
+      "description": "A non-foldout living-room couch best for kids or an easy late-night crash pad.",
+      "bed": "Non-foldout living-room couch",
+      "capacity": 3,
       "bathroom": "Shared bath",
-      "amenities": ["Shared space"],
-      "status": "draft",
+      "amenities": ["Shared space", "Best for kids", "Does not fold out"],
+      "status": "active",
       "fallbackRoomSlugs": []
     }
   ]

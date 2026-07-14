@@ -76,6 +76,8 @@ export const properties = pgTable("properties", {
   generalLocation: text("general_location").notNull().default(""),
   address: text("address").notNull().default(""),
   timezone: text("timezone").notNull().default("America/New_York"),
+  availableFrom: date("available_from"),
+  availableUntil: date("available_until"),
   summary: text("summary").notNull().default(""),
   sourceLinks: jsonb("source_links").notNull().$type<Array<{ label: string; url: string; type: string }>>().default([]),
   imageKeys: jsonb("image_keys").notNull().$type<string[]>().default([]),

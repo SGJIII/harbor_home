@@ -3,6 +3,7 @@ import type {
   Booking,
   DateRange,
   Profile,
+  Property,
   Room,
 } from "../types";
 
@@ -30,6 +31,27 @@ export function validateStayRange(range: DateRange): string | null {
   if (nights < 1) return "Check-out must be after check-in.";
   if (nights > 7) return "Stays are limited to seven nights.";
   return null;
+}
+
+export function formatAvailabilityWindow(property: Pick<Property, "availableFrom" | "availableUntil">): string | null {
+  const format = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const start = property.availableFrom ? format.format(new Date(`${property.availableFrom}T12:00:00`)) : null;
+  const end = property.availableUntil ? format.format(new Date(`${property.availableUntil}T12:00:00`)) : null;
+  if (start && end) return `Available ${start} – ${end}`;
+  if (start) return `Available beginning ${start}`;
+  if (end) return `Available through ${end}`;
+  return null;
+}
+
+export function propertyAvailabilityError(
+  property: Pick<Property, "availableFrom" | "availableUntil">,
+  range: DateRange,
+): string | null {
+  if (!range.checkIn || !range.checkOut) return null;
+  const outsideStart = Boolean(property.availableFrom && range.checkIn < property.availableFrom);
+  const outsideEnd = Boolean(property.availableUntil && range.checkOut > property.availableUntil);
+  if (!outsideStart && !outsideEnd) return null;
+  return `${formatAvailabilityWindow(property) ?? "This property is not available for those dates"}.`;
 }
 
 export function contiguousStayLength(existing: Booking[], next: DateRange): number {

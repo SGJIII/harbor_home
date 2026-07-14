@@ -45,6 +45,8 @@ export interface Property {
   generalLocation: string;
   address: string;
   timezone: string;
+  availableFrom: string | null;
+  availableUntil: string | null;
   summary: string;
   sourceLinks: SourceLink[];
   roomIds: string[];

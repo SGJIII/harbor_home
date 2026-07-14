@@ -47,7 +47,7 @@ Create a free Neon Postgres project, copy its pooled connection string, and set 
 DATABASE_URL='postgresql://...' npm run db:migrate
 ```
 
-The migration seeds the default categories, Rockaway, and the hidden second property. The two main-house bedroom capacities remain draft until a host confirms them.
+The migrations seed the default categories, Rockaway, and Luna in Playa Pelada. Property availability windows are enforced both in the server API and by a database trigger; checkout is the final allowed date and is excluded from occupancy.
 
 ### 2. Configure passwordless email
 
@@ -82,7 +82,7 @@ After the first deployment:
 
 ## Property specifications
 
-Versioned property files live in [`property-specs`](./property-specs). They are the durable source of truth for names, location, time zone, source links, rooms, capacity, amenities, fallbacks, and authorized images. Listing imports create drafts for review; live booking never depends on Zillow or Airbnb remaining accessible.
+Versioned property files live in [`property-specs`](./property-specs). They are the durable source of truth for names, location, time zone, availability windows, source links, rooms, capacity, amenities, fallbacks, and authorized images. Listing imports create drafts for review; live booking never depends on Zillow or Airbnb remaining accessible.
 
 Do not publish third-party listing photos merely because the importer found a URL. Record an owned asset key or explicit reuse approval first.
 
