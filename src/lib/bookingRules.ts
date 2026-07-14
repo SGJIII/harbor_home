@@ -54,6 +54,19 @@ export function propertyAvailabilityError(
   return `${formatAvailabilityWindow(property) ?? "This property is not available for those dates"}.`;
 }
 
+export function suggestedStayRange(
+  property: Pick<Property, "availableFrom" | "availableUntil">,
+  today: string,
+  preferredNights = 3,
+): DateRange {
+  const checkIn = property.availableFrom && property.availableFrom > today ? property.availableFrom : today;
+  const preferredCheckout = new Date(dateOnly(checkIn) + preferredNights * dayMs).toISOString().slice(0, 10);
+  const checkOut = property.availableUntil && preferredCheckout > property.availableUntil
+    ? property.availableUntil
+    : preferredCheckout;
+  return { checkIn, checkOut };
+}
+
 export function contiguousStayLength(existing: Booking[], next: DateRange): number {
   let start = dateOnly(next.checkIn);
   let end = dateOnly(next.checkOut);

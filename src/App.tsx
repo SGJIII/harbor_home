@@ -60,6 +60,7 @@ import {
   rangesOverlap,
   reservedRoomCount,
   roomConflicts,
+  suggestedStayRange,
   validateStayRange,
 } from "./lib/bookingRules";
 import { apiRequest } from "./lib/api";
@@ -269,13 +270,13 @@ function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function DateSearch({ checkIn, checkOut, onChange }: { checkIn: string; checkOut: string; onChange: (field: "checkIn" | "checkOut", value: string) => void }) {
+function DateSearch({ checkIn, checkOut, minDate, maxDate, onChange }: { checkIn: string; checkOut: string; minDate?: string; maxDate?: string | null; onChange: (field: "checkIn" | "checkOut", value: string) => void }) {
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
   return (
     <div className="date-search">
-      <label><span>Check in</span><input type="date" value={checkIn} onChange={(event) => onChange("checkIn", event.target.value)} /></label>
+      <label><span>Check in</span><input type="date" value={checkIn} min={minDate} max={maxDate ?? undefined} onChange={(event) => onChange("checkIn", event.target.value)} /></label>
       <div className="date-divider" />
-      <label><span>Check out</span><input type="date" value={checkOut} min={checkIn} onChange={(event) => onChange("checkOut", event.target.value)} /></label>
+      <label><span>Check out</span><input type="date" value={checkOut} min={checkIn || minDate} max={maxDate ?? undefined} onChange={(event) => onChange("checkOut", event.target.value)} /></label>
       <span className={`night-count ${nights > 7 ? "night-error" : ""}`}><Clock3 size={15} /> {nights > 0 ? `${nights} night${nights === 1 ? "" : "s"}` : "Choose dates"}</span>
     </div>
   );
@@ -389,65 +390,78 @@ function BookingModal({ room, property, range, onClose }: { room: Room; property
 
 function BookingPage() {
   const { state, currentUser } = useApp();
-  const [range, setRange] = useState(() => {
-    const firstWindow = state.properties
-      .filter((property) => property.status === "active" && property.availableFrom)
-      .map((property) => property.availableFrom as string)
-      .sort()[0];
-    if (!firstWindow) return demoWeekend;
-    const checkout = new Date(`${firstWindow}T12:00:00`);
-    checkout.setDate(checkout.getDate() + 3);
-    return { checkIn: firstWindow, checkOut: checkout.toISOString().slice(0, 10) };
-  });
+  const [range, setRange] = useState(demoWeekend);
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [selected, setSelected] = useState<{ room: Room; property: Property } | null>(null);
   const activeProperties = state.properties.filter((property) => property.status === "active");
-  const error = validateStayRange(range);
+  const property = activeProperties.find((item) => item.id === selectedPropertyId);
+  const now = new Date();
+  const today = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  const selectProperty = (choice: Property) => {
+    setSelectedPropertyId(choice.id);
+    setRange(suggestedStayRange(choice, today));
+    setSelected(null);
+  };
+  const error = property ? validateStayRange(range) : null;
+
+  const propertyPanel = property ? (() => {
+    const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
+    const outsideWindow = propertyAvailabilityError(property, range);
+    const availabilityLabel = formatAvailabilityWindow(property);
+    const standardBookings = state.bookings.filter((booking) => !booking.eventId);
+    const ownRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId === currentUser.id));
+    const otherRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId !== currentUser.id));
+    const gatheringRoomIds = new Set(state.events.filter((event) => event.status === "published" && event.propertyId === property.id && rangesOverlap(event, range)).flatMap((event) => event.roomIds));
+    const gatheringRooms = gatheringRoomIds.size;
+    const blocked = isProfileBlocked(currentUser, property.id, range, state.blocks);
+    const openCount = outsideWindow || blocked ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0 && !gatheringRoomIds.has(room.id)).length;
+    return <section className="property-panel">
+      <div className={`property-cover cover-${property.accent}`}>
+        <div className="cover-copy"><span>{property.eyebrow}</span><h2>{property.name}</h2><p>{property.summary}</p>{availabilityLabel && <small><CalendarDays size={13} /> {availabilityLabel}</small>}</div>
+        <div className="cover-house"><House size={64} strokeWidth={1.1} /><span><i /> {openCount} open</span></div>
+      </div>
+      <div className="property-body">
+        <div className="property-meta">
+          <div><MapPin size={16} /><span><strong>{property.generalLocation}</strong><small>{property.address}</small></span></div>
+          {property.sourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label} <ExternalLink size={14} /></a>)}
+        </div>
+        <div className="occupancy-strip">
+          <span className="occupancy-icon"><Users size={17} /></span>
+          <div><strong>Who’s around for these dates?</strong><span>{outsideWindow ? "Choose dates inside this property’s availability window." : otherRooms > 0 ? `Other guests already have ${otherRooms} room${otherRooms === 1 ? "" : "s"} reserved.` : "No other guest rooms are reserved yet."}</span></div>
+          {!outsideWindow && ownRooms > 0 && <small>You have {ownRooms} room{ownRooms === 1 ? "" : "s"} reserved</small>}
+          {!outsideWindow && gatheringRooms > 0 && <small>{gatheringRooms} room{gatheringRooms === 1 ? "" : "s"} held for a private gathering</small>}
+        </div>
+        <div className="room-list">
+          {rooms.map((room) => <RoomCard key={room.id} room={room} property={property} range={range} onBook={(chosen) => setSelected({ room: chosen, property })} />)}
+        </div>
+      </div>
+    </section>;
+  })() : null;
 
   return (
     <AppShell>
-      <div className="page-heading booking-heading">
-        <div><p className="eyebrow">WELCOME BACK, {currentUser.name.split(" ")[0].toUpperCase()}</p><h1>Where would you like to stay?</h1><p>Choose your dates, then pick the sleeping space that feels right.</p></div>
-        <DateSearch checkIn={range.checkIn} checkOut={range.checkOut} onChange={(field, value) => setRange((current) => ({ ...current, [field]: value }))} />
+      <div className="page-heading booking-heading booking-intro">
+        <div><p className="eyebrow">WELCOME BACK, {currentUser.name.split(" ")[0].toUpperCase()}</p><h1>Plan your stay.</h1><p>Choose a home first, then dates and the sleeping space that feels right.</p></div>
       </div>
-      {error && <div className="inline-alert"><CircleAlert size={18} /> {error}</div>}
+      <section className="booking-step property-choice-step" aria-labelledby="property-step-title">
+        <div className="booking-step-heading"><span>1</span><div><small>First, choose a home</small><h2 id="property-step-title">Where would you like to stay?</h2></div></div>
+        <div className="property-choice-grid">{activeProperties.map((choice) => {
+          const active = choice.id === selectedPropertyId;
+          return <button type="button" key={choice.id} aria-pressed={active} className={`property-choice choice-${choice.accent} ${active ? "selected" : ""}`} onClick={() => selectProperty(choice)}>
+            <span className="property-choice-icon"><House size={24} /></span><span className="property-choice-copy"><small>{choice.eyebrow}</small><strong>{choice.name}</strong><span><MapPin size={13} /> {choice.generalLocation}</span><em>{formatAvailabilityWindow(choice) ?? "Dates available year-round"}</em></span><span className="property-choice-action">{active ? <Check size={18} /> : <ArrowRight size={18} />}</span>
+          </button>;
+        })}</div>
+      </section>
 
-      <div className="property-stack">
-        {activeProperties.map((property) => {
-          const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
-          const outsideWindow = propertyAvailabilityError(property, range);
-          const availabilityLabel = formatAvailabilityWindow(property);
-          const standardBookings = state.bookings.filter((booking) => !booking.eventId);
-          const ownRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId === currentUser.id));
-          const otherRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId !== currentUser.id));
-          const gatheringRoomIds = new Set(state.events.filter((event) => event.status === "published" && event.propertyId === property.id && rangesOverlap(event, range)).flatMap((event) => event.roomIds));
-          const gatheringRooms = gatheringRoomIds.size;
-          const blocked = isProfileBlocked(currentUser, property.id, range, state.blocks);
-          const openCount = outsideWindow || blocked ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0 && !gatheringRoomIds.has(room.id)).length;
-          return (
-            <section className="property-panel" key={property.id}>
-              <div className={`property-cover cover-${property.accent}`}>
-                <div className="cover-copy"><span>{property.eyebrow}</span><h2>{property.name}</h2><p>{property.summary}</p>{availabilityLabel && <small><CalendarDays size={13} /> {availabilityLabel}</small>}</div>
-                <div className="cover-house"><House size={64} strokeWidth={1.1} /><span><i /> {openCount} open</span></div>
-              </div>
-              <div className="property-body">
-                <div className="property-meta">
-                  <div><MapPin size={16} /><span><strong>{property.generalLocation}</strong><small>{property.address}</small></span></div>
-                  {property.sourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label} <ExternalLink size={14} /></a>)}
-                </div>
-                <div className="occupancy-strip">
-                  <span className="occupancy-icon"><Users size={17} /></span>
-                  <div><strong>Who’s around for these dates?</strong><span>{outsideWindow ? "Choose dates inside this property’s availability window." : otherRooms > 0 ? `Other guests already have ${otherRooms} room${otherRooms === 1 ? "" : "s"} reserved.` : "No other guest rooms are reserved yet."}</span></div>
-                  {!outsideWindow && ownRooms > 0 && <small>You have {ownRooms} room{ownRooms === 1 ? "" : "s"} reserved</small>}
-                  {!outsideWindow && gatheringRooms > 0 && <small>{gatheringRooms} room{gatheringRooms === 1 ? "" : "s"} held for a private gathering</small>}
-                </div>
-                <div className="room-list">
-                  {rooms.map((room) => <RoomCard key={room.id} room={room} property={property} range={range} onBook={(chosen) => setSelected({ room: chosen, property })} />)}
-                </div>
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      {property && <>
+        <section className="booking-step date-choice-step" aria-labelledby="date-step-title">
+          <div className="booking-step-heading"><span>2</span><div><small>Next, choose dates</small><h2 id="date-step-title">When are you coming to {property.name}?</h2></div></div>
+          <DateSearch checkIn={range.checkIn} checkOut={range.checkOut} minDate={property.availableFrom && property.availableFrom > today ? property.availableFrom : today} maxDate={property.availableUntil} onChange={(field, value) => setRange((current) => ({ ...current, [field]: value }))} />
+        </section>
+        {error && <div className="inline-alert booking-flow-alert"><CircleAlert size={18} /> {error}</div>}
+        <div className="booking-step-heading room-step-heading"><span>3</span><div><small>Finally, choose a room</small><h2>Where would you like to sleep?</h2></div></div>
+        <div className="property-stack">{propertyPanel}</div>
+      </>}
       {selected && <BookingModal room={selected.room} property={selected.property} range={range} onClose={() => setSelected(null)} />}
     </AppShell>
   );

@@ -9,6 +9,7 @@ import {
   reservedRoomCount,
   roomConflicts,
   propertyAvailabilityError,
+  suggestedStayRange,
   validateStayRange,
 } from "../src/lib/bookingRules";
 import type { AvailabilityBlock, Booking, Profile, Property, Room } from "../src/types";
@@ -60,6 +61,18 @@ describe("categories and blackouts", () => {
 });
 
 describe("property booking windows", () => {
+  it("suggests dates only after the selected property's availability begins", () => {
+    const rockaway = property({ availableFrom: "2027-06-01" });
+    const luna = property({ availableFrom: "2027-02-15", availableUntil: "2027-05-02" });
+    expect(suggestedStayRange(rockaway, "2026-07-13")).toEqual({ checkIn: "2027-06-01", checkOut: "2027-06-04" });
+    expect(suggestedStayRange(luna, "2026-07-13")).toEqual({ checkIn: "2027-02-15", checkOut: "2027-02-18" });
+  });
+
+  it("keeps suggested dates inside a short property window", () => {
+    const shortWindow = property({ availableFrom: "2027-02-15", availableUntil: "2027-02-17" });
+    expect(suggestedStayRange(shortWindow, "2026-07-13")).toEqual({ checkIn: "2027-02-15", checkOut: "2027-02-17" });
+  });
+
   it("allows stays fully inside a finite rental window", () => {
     const rental = property({ availableFrom: "2027-02-15", availableUntil: "2027-05-02" });
     expect(propertyAvailabilityError(rental, { checkIn: "2027-02-15", checkOut: "2027-02-22" })).toBeNull();
