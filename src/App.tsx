@@ -318,7 +318,7 @@ function PropertyPhotoGallery({ property }: { property: Property }) {
     <div className="property-photo-grid">
       {photoSet.photos.map((photo) => <a key={photo.src} href={photo.src} target="_blank" rel="noreferrer" aria-label={`Open full-size photo: ${photo.alt}`}><img src={photo.src} alt={photo.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" /></a>)}
     </div>
-    <figcaption><span>Listing photos hosted by {photoSet.sourceName}</span><a href={photoSet.sourceUrl} target="_blank" rel="noreferrer">View original listing <ExternalLink size={12} /></a></figcaption>
+    <figcaption><span>Listing photos from {photoSet.sourceName}</span><a href={photoSet.sourceUrl} target="_blank" rel="noreferrer">View original listing <ExternalLink size={12} /></a></figcaption>
   </figure>;
 }
 
