@@ -16,6 +16,7 @@
 
 # generated output
 /.netlify/
+/.neon
 
 # misc
 .DS_Store
