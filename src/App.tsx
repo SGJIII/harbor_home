@@ -63,6 +63,7 @@ import {
   validateStayRange,
 } from "./lib/bookingRules";
 import { apiRequest } from "./lib/api";
+import { hostScheduleBookings, stayPhase, type StayTiming } from "./lib/hostSchedule";
 import type {
   AppState,
   Booking,
@@ -495,7 +496,7 @@ function AdminPage() {
     { id: "people", label: "People", icon: Users },
     { id: "properties", label: "Properties", icon: House },
     { id: "rules", label: "Rules", icon: ShieldCheck },
-    { id: "stays", label: "Bookings", icon: CalendarDays },
+    { id: "stays", label: "Who’s staying", icon: CalendarDays },
     { id: "parties", label: "Parties", icon: PartyPopper },
     { id: "activity", label: "Activity", icon: Clock3 },
   ];
@@ -520,7 +521,7 @@ function AdminOverview({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const pending = state.profiles.filter((profile) => profile.status === "pending").length;
   const activeBookings = state.bookings.filter((booking) => booking.status === "confirmed").length;
   const drafts = state.rooms.filter((room) => room.status === "draft").length;
-  return <><div className="metric-grid"><article><span className="metric-icon coral"><Users /></span><div><small>Pending access</small><strong>{pending}</strong><button onClick={() => onNavigate("people")}>Review people <ArrowRight size={14} /></button></div></article><article><span className="metric-icon sea"><CalendarDays /></span><div><small>Active bookings</small><strong>{activeBookings}</strong><button>View schedule <ArrowRight size={14} /></button></div></article><article><span className="metric-icon sand"><House /></span><div><small>Draft room details</small><strong>{drafts}</strong><button onClick={() => onNavigate("properties")}>Complete drafts <ArrowRight size={14} /></button></div></article></div>
+  return <><div className="metric-grid"><article><span className="metric-icon coral"><Users /></span><div><small>Pending access</small><strong>{pending}</strong><button onClick={() => onNavigate("people")}>Review people <ArrowRight size={14} /></button></div></article><article><span className="metric-icon sea"><CalendarDays /></span><div><small>Active bookings</small><strong>{activeBookings}</strong><button onClick={() => onNavigate("stays")}>View schedule <ArrowRight size={14} /></button></div></article><article><span className="metric-icon sand"><House /></span><div><small>Draft room details</small><strong>{drafts}</strong><button onClick={() => onNavigate("properties")}>Complete drafts <ArrowRight size={14} /></button></div></article></div>
     <div className="admin-card"><div className="card-heading"><div><span className="section-icon"><ListChecks size={18} /></span><div><h2>What needs attention</h2><p>Small things to clear before the next visit.</p></div></div></div><div className="attention-list">{pending > 0 && <button onClick={() => onNavigate("people")}><span className="attention-dot coral" /><div><strong>{pending} person waiting for approval</strong><small>Choose their relationship categories before opening access.</small></div><ArrowRight /></button>}<button onClick={() => onNavigate("properties")}><span className="attention-dot sand" /><div><strong>{drafts} sleeping spaces need capacity details</strong><small>Draft rooms stay hidden and cannot be used as fallbacks.</small></div><ArrowRight /></button><button onClick={() => onNavigate("parties")}><span className="attention-dot sea" /><div><strong>{state.events.filter((event) => event.status === "published").length} private gathering published</strong><small>Event rooms are held away from standard booking.</small></div><ArrowRight /></button></div></div></>;
 }
 
@@ -609,8 +610,40 @@ function AdminParties() {
 
 function AdminBookings() {
   const { state } = useApp();
-  const active = state.bookings.filter((booking) => booking.status === "confirmed");
-  return <div className="admin-card"><div className="card-heading"><div><span className="section-icon"><CalendarDays size={18} /></span><div><h2>Bookings &amp; room moves</h2><p>Hosts can see identities and the complete active schedule.</p></div></div></div>{active.length === 0 ? <EmptyState icon={<CalendarDays />} title="No active bookings" copy="Confirmed stays and event rooms will appear here." /> : <div className="people-list booking-admin-list">{active.map((booking) => { const guest = state.profiles.find((profile) => profile.id === booking.userId); const room = state.rooms.find((item) => item.id === booking.roomId); const property = state.properties.find((item) => item.id === booking.propertyId); return <article key={booking.id}><div className="avatar avatar-large">{guest?.name.split(" ").map((part) => part[0]).slice(0, 2).join("") ?? "?"}</div><div className="person-copy"><div><h3>{guest?.name ?? "Unknown guest"}</h3><span className="status-badge status-open">{booking.eventId ? "party" : "confirmed"}</span></div><p>{room?.name} · {property?.name}</p><small>{formatDateRange(booking.checkIn, booking.checkOut)} · {booking.partySize} guest{booking.partySize === 1 ? "" : "s"}</small>{booking.movedFromRoomId && <small className="moved-note">Moved by a priority rule; dates unchanged.</small>}</div></article>; })}</div>}</div>;
+  const [propertyId, setPropertyId] = useState("all");
+  const [timing, setTiming] = useState<StayTiming>("upcoming");
+  const now = new Date();
+  const today = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  const visible = hostScheduleBookings(state.bookings, { propertyId, timing, today });
+  const propertyCount = new Set(visible.map((booking) => booking.propertyId)).size;
+  const inHouseCount = visible.filter((booking) => stayPhase(booking, today) === "in-house").length;
+  const formatScheduleDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  return <div className="admin-card host-schedule-card">
+    <div className="card-heading"><div><span className="section-icon"><CalendarDays size={18} /></span><div><h2>Who’s staying where</h2><p>Every confirmed room assignment, guest, and date—visible only to Sam and Lisa.</p></div></div></div>
+    <div className="host-schedule-toolbar">
+      <label><span>Property</span><select aria-label="Filter stays by property" value={propertyId} onChange={(event) => setPropertyId(event.target.value)}><option value="all">All properties</option>{state.properties.map((property) => <option value={property.id} key={property.id}>{property.name}</option>)}</select></label>
+      <label><span>Dates</span><select aria-label="Filter stays by timing" value={timing} onChange={(event) => setTiming(event.target.value as StayTiming)}><option value="upcoming">Upcoming &amp; in-house</option><option value="past">Past stays</option><option value="all">All stays</option></select></label>
+      <div className="schedule-summary" aria-live="polite"><span><strong>{visible.length}</strong> room stay{visible.length === 1 ? "" : "s"}</span><span><strong>{propertyCount}</strong> propert{propertyCount === 1 ? "y" : "ies"}</span><span><strong>{inHouseCount}</strong> in-house now</span></div>
+    </div>
+    {visible.length === 0 ? <EmptyState icon={<CalendarDays />} title="No matching stays" copy="Confirmed room reservations will appear here as soon as someone books." /> : <div className="schedule-table" role="table" aria-label="Host occupancy schedule">
+      <div className="schedule-row schedule-head" role="row"><span role="columnheader">When</span><span role="columnheader">Who</span><span role="columnheader">Where</span><span role="columnheader">Stay details</span></div>
+      {visible.map((booking) => {
+        const guest = state.profiles.find((profile) => profile.id === booking.userId);
+        const room = state.rooms.find((item) => item.id === booking.roomId);
+        const property = state.properties.find((item) => item.id === booking.propertyId);
+        const event = booking.eventId ? state.events.find((item) => item.id === booking.eventId) : undefined;
+        const movedFrom = booking.movedFromRoomId ? state.rooms.find((item) => item.id === booking.movedFromRoomId) : undefined;
+        const phase = stayPhase(booking, today);
+        return <article className="schedule-row schedule-stay" role="row" key={booking.id}>
+          <div className="schedule-when" role="cell"><span className={`stay-phase phase-${phase}`}>{phase === "in-house" ? "In house" : phase}</span><div><time dateTime={booking.checkIn}>{formatScheduleDate(booking.checkIn)}</time><span>to</span><time dateTime={booking.checkOut}>{formatScheduleDate(booking.checkOut)}</time></div></div>
+          <div className="schedule-who" role="cell"><div className="avatar avatar-large">{guest?.name.split(" ").map((part) => part[0]).slice(0, 2).join("") ?? "?"}</div><div><strong>{guest?.name ?? "Unknown guest"}</strong><small>{guest?.relationship || "Approved guest"}</small></div></div>
+          <div className="schedule-where" role="cell"><span className={`schedule-property-dot dot-${property?.accent ?? "ocean"}`} /><div><strong>{room?.name ?? "Unknown room"}</strong><small>{property?.name ?? "Unknown property"} · {property?.generalLocation}</small></div></div>
+          <div className="schedule-details" role="cell"><span><Users size={14} /> {booking.partySize} guest{booking.partySize === 1 ? "" : "s"}</span>{event && <span><PartyPopper size={14} /> {event.title}</span>}{movedFrom && <small>Moved from {movedFrom.name}</small>}</div>
+        </article>;
+      })}
+    </div>}
+  </div>;
 }
 
 function AdminActivity() {
