@@ -49,6 +49,7 @@ import {
 } from "react-router-dom";
 import { isDemoMode } from "./auth";
 import { demoState, demoWeekend } from "./data/demo";
+import { personalPhotos } from "./data/personalPhotos";
 import { propertyPhotoSets } from "./data/propertyPhotos";
 import {
   contiguousStayLength,
@@ -190,6 +191,22 @@ function LandingPage() {
           </div>
           <div className="floating-note note-left"><CalendarDays size={18} /><span><b>Pick your dates</b><small>Up to 7 nights</small></span></div>
           <div className="floating-note note-right"><ShieldCheck size={18} /><span><b>Family rules</b><small>Handled gently</small></span></div>
+        </div>
+      </section>
+
+      <section className="host-welcome shell-width" aria-labelledby="host-welcome-title">
+        <div className="host-photo-collage">
+          <img className="host-photo-sunset" src={personalPhotos.sunset.src} alt={personalPhotos.sunset.alt} />
+          <img className="host-photo-beach" src={personalPhotos.beach.src} alt={personalPhotos.beach.alt} loading="lazy" />
+        </div>
+        <div className="host-welcome-copy">
+          <p className="eyebrow"><Sparkles size={14} /> FROM SAM &amp; LISA</p>
+          <h2 id="host-welcome-title">Our favorite places are better with our favorite people in them.</h2>
+          <p>We made Harbor &amp; Home so friends and family can skip the group-chat logistics and get to the good part: choosing a room, showing up, and staying awhile.</p>
+          <div className="host-signoff">
+            <img src={personalPhotos.dog.src} alt={personalPhotos.dog.alt} loading="lazy" />
+            <div><strong>Come make yourself at home.</strong><span>With love, Sam &amp; Lisa</span></div>
+          </div>
         </div>
       </section>
 
