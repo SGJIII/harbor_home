@@ -6,6 +6,7 @@ import {
   isProfileBlocked,
   nightsBetween,
   rangesOverlap,
+  reservedRoomCount,
   roomConflicts,
   propertyAvailabilityError,
   validateStayRange,
@@ -33,6 +34,16 @@ describe("date occupancy", () => {
     const existing = [booking({ checkIn: "2026-08-01", checkOut: "2026-08-04" }), booking({ roomId: "downstairs", checkIn: "2026-08-04", checkOut: "2026-08-06" })];
     expect(contiguousStayLength(existing, { checkIn: "2026-08-06", checkOut: "2026-08-08" })).toBe(7);
     expect(contiguousStayLength(existing, { checkIn: "2026-08-06", checkOut: "2026-08-09" })).toBe(8);
+  });
+
+  it("counts anonymous occupied rooms for the selected property and dates", () => {
+    const bookings = [
+      booking({ roomId: "adu" }),
+      booking({ id: crypto.randomUUID(), roomId: "downstairs" }),
+      booking({ id: crypto.randomUUID(), roomId: "elsewhere", propertyId: "other" }),
+      booking({ id: crypto.randomUUID(), roomId: "later", checkIn: "2026-08-04", checkOut: "2026-08-06" }),
+    ];
+    expect(reservedRoomCount("rockaway", { checkIn: "2026-08-01", checkOut: "2026-08-04" }, bookings)).toBe(2);
   });
 });
 

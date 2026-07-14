@@ -104,6 +104,19 @@ export function roomConflicts(roomId: string, range: DateRange, bookings: Bookin
   );
 }
 
+export function reservedRoomCount(propertyId: string, range: DateRange, bookings: Booking[]): number {
+  return new Set(
+    bookings
+      .filter(
+        (booking) =>
+          booking.propertyId === propertyId &&
+          booking.status === "confirmed" &&
+          rangesOverlap(booking, range),
+      )
+      .map((booking) => booking.roomId),
+  ).size;
+}
+
 export function findFirstFallback(
   sourceRoom: Room,
   displaced: Booking,

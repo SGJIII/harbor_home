@@ -161,6 +161,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .property-meta strong { font-size: 12px; }
 .property-meta small { color: #83918e; font-size: 10px; }
 .property-meta a { display: inline-flex; align-items: center; gap: 5px; color: var(--sea); font-size: 11px; font-weight: 750; }
+.occupancy-strip { display: flex; align-items: center; gap: 11px; min-height: 52px; margin-bottom: 18px; padding: 10px 13px; border: 1px solid #dce8e4; border-radius: 13px; background: #f3f8f6; }
+.occupancy-icon { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; background: #dcece7; color: var(--sea); }
+.occupancy-strip > div { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 2px; }
+.occupancy-strip strong { color: #24413d; font-size: 10px; }
+.occupancy-strip > div > span { color: #6e807c; font-size: 10px; }
+.occupancy-strip small { padding: 4px 7px; border-radius: 999px; background: #fff; color: #58706a; font-size: 8px; font-weight: 750; white-space: nowrap; }
 .room-list { display: flex; flex-direction: column; border-top: 1px solid #eaebe7; }
 .room-card { min-height: 115px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid #eaebe7; padding: 19px 0; }
 .room-card:last-child { border-bottom: 0; }
@@ -359,6 +365,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .app-content { padding-top: 31px; }.page-heading h1,.admin-header h1 { font-size: 38px; }.page-heading { align-items: flex-start; flex-direction: column; }
   .date-search { padding: 11px; flex-wrap: wrap; }.date-search label { min-width: 42%; }.date-divider { display:none; }.night-count { width:100%; justify-content:center; }
   .property-cover { min-height: 240px; padding: 30px 24px; }.cover-copy h2 { font-size: 34px; }.cover-house { display:none; }.property-body { padding: 18px; }.property-meta { align-items:flex-start; flex-direction:column; gap:12px; }
+  .occupancy-strip { align-items:flex-start; flex-wrap:wrap; }.occupancy-strip > div { flex-basis:calc(100% - 44px); }.occupancy-strip small { margin-left:42px; }
   .room-card { align-items:flex-start; flex-wrap:wrap; }.room-icon { width:43px;height:43px; }.room-main { min-width: calc(100% - 62px); }.room-card > .button { width:100%; min-height:40px; }.room-title-row { align-items:flex-start; flex-direction:column; gap:4px; }
   .modal-card { padding: 28px 20px 20px; }.booking-summary { grid-template-columns:1fr; }
   .stay-card { grid-template-columns: 54px 1fr; }.stay-card > .button { grid-column:1 / -1; }

@@ -58,6 +58,7 @@ import {
   nightsBetween,
   propertyAvailabilityError,
   rangesOverlap,
+  reservedRoomCount,
   roomConflicts,
   validateStayRange,
 } from "./lib/bookingRules";
@@ -414,7 +415,13 @@ function BookingPage() {
           const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
           const outsideWindow = propertyAvailabilityError(property, range);
           const availabilityLabel = formatAvailabilityWindow(property);
-          const openCount = outsideWindow ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0).length;
+          const standardBookings = state.bookings.filter((booking) => !booking.eventId);
+          const ownRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId === currentUser.id));
+          const otherRooms = reservedRoomCount(property.id, range, standardBookings.filter((booking) => booking.userId !== currentUser.id));
+          const gatheringRoomIds = new Set(state.events.filter((event) => event.status === "published" && event.propertyId === property.id && rangesOverlap(event, range)).flatMap((event) => event.roomIds));
+          const gatheringRooms = gatheringRoomIds.size;
+          const blocked = isProfileBlocked(currentUser, property.id, range, state.blocks);
+          const openCount = outsideWindow || blocked ? 0 : rooms.filter((room) => room.status === "active" && room.capacity !== null && roomConflicts(room.id, range, state.bookings).length === 0 && !gatheringRoomIds.has(room.id)).length;
           return (
             <section className="property-panel" key={property.id}>
               <div className={`property-cover cover-${property.accent}`}>
@@ -425,6 +432,12 @@ function BookingPage() {
                 <div className="property-meta">
                   <div><MapPin size={16} /><span><strong>{property.generalLocation}</strong><small>{property.address}</small></span></div>
                   {property.sourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.label} <ExternalLink size={14} /></a>)}
+                </div>
+                <div className="occupancy-strip">
+                  <span className="occupancy-icon"><Users size={17} /></span>
+                  <div><strong>Who’s around for these dates?</strong><span>{outsideWindow ? "Choose dates inside this property’s availability window." : otherRooms > 0 ? `Other guests already have ${otherRooms} room${otherRooms === 1 ? "" : "s"} reserved.` : "No other guest rooms are reserved yet."}</span></div>
+                  {!outsideWindow && ownRooms > 0 && <small>You have {ownRooms} room{ownRooms === 1 ? "" : "s"} reserved</small>}
+                  {!outsideWindow && gatheringRooms > 0 && <small>{gatheringRooms} room{gatheringRooms === 1 ? "" : "s"} held for a private gathering</small>}
                 </div>
                 <div className="room-list">
                   {rooms.map((room) => <RoomCard key={room.id} room={room} property={property} range={range} onBook={(chosen) => setSelected({ room: chosen, property })} />)}
