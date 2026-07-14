@@ -26,7 +26,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`VITE_DEMO_MODE=true` runs entirely in the browser with seeded people, bookings, a no-parents week, and a party. Use the “Preview as” menu to test an admin, a mom, or a friend. Demo data resets on refresh and must never be used as the production data store.
+`VITE_DEMO_MODE=true` runs entirely in the browser with seeded people, bookings, a no-parents week, and a party while using Vite's development server. Use the “Preview as” menu to test an admin, a mom, or a friend. Production builds always fail closed when Neon is not configured; the seeded demo cannot be exposed by an accidental Netlify deployment.
 
 Run the validation suite:
 
