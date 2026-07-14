@@ -94,6 +94,22 @@ function useApp() {
   return value;
 }
 
+function useSessionResume(destination: string) {
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(!isDemoMode);
+
+  useEffect(() => {
+    if (isDemoMode) { setChecking(false); return; }
+    let cancelled = false;
+    apiRequest<{ authenticated: true }>("/auth/session")
+      .then(() => { if (!cancelled) navigate(destination, { replace: true }); })
+      .catch(() => { if (!cancelled) setChecking(false); });
+    return () => { cancelled = true; };
+  }, [destination, navigate]);
+
+  return checking;
+}
+
 function AppProvider({ children, initialState = demoState }: { children: ReactNode; initialState?: AppState }) {
   const [state, setState] = useState<AppState>(initialState);
   const [currentUserId, setCurrentUserId] = useState(initialState.profiles[0]?.id ?? "");
@@ -124,6 +140,7 @@ function Brand({ light = false }: { light?: boolean }) {
 
 function LandingPage() {
   const navigate = useNavigate();
+  useSessionResume("/book");
   const begin = () => navigate(isDemoMode ? "/book" : "/auth/sign-in");
 
   return (
@@ -201,7 +218,9 @@ function AuthPage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const checkingSession = useSessionResume(redirectTo);
   if (isDemoMode) return <Navigate to="/book" replace />;
+  if (checkingSession) return <div className="app-loading"><Brand /><span /><p>Restoring your sign-in…</p></div>;
   const requestCode = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true); setError(null);

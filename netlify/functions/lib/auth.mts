@@ -11,6 +11,7 @@ export interface AppUser {
 }
 
 export const sessionCookieName = "hh_session";
+export const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
@@ -62,7 +63,14 @@ function isHttps(request: Request): boolean {
   return request.headers.get("x-forwarded-proto") === "https" || new URL(request.url).protocol === "https:";
 }
 
-export function sessionCookie(request: Request, token: string, maxAgeSeconds = 60 * 60 * 24 * 30): string {
+export function newSessionExpiresAt(now = new Date()): Date {
+  return new Date(now.getTime() + sessionMaxAgeSeconds * 1_000);
+}
+
+export function sessionCookie(request: Request, token: string, maxAgeSeconds = sessionMaxAgeSeconds, now = new Date()): string {
+  const expires = maxAgeSeconds > 0
+    ? new Date(now.getTime() + maxAgeSeconds * 1_000)
+    : new Date(0);
   return [
     `${sessionCookieName}=${encodeURIComponent(token)}`,
     "Path=/",
@@ -70,6 +78,8 @@ export function sessionCookie(request: Request, token: string, maxAgeSeconds = 6
     "SameSite=Lax",
     isHttps(request) ? "Secure" : "",
     `Max-Age=${maxAgeSeconds}`,
+    `Expires=${expires.toUTCString()}`,
+    "Priority=High",
   ].filter(Boolean).join("; ");
 }
 

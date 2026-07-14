@@ -3,6 +3,7 @@ import {
   clearSessionCookie,
   isAdminEmail,
   loginCodeHash,
+  newSessionExpiresAt,
   normalizeEmail,
   readCookie,
   requireAdmin,
@@ -47,12 +48,22 @@ describe("passwordless authentication security", () => {
     expect(cookie).toContain("SameSite=Lax");
     expect(cookie).toContain("Secure");
     expect(cookie).toContain("Max-Age=3600");
+    expect(cookie).toContain("Expires=");
+    expect(cookie).toContain("Priority=High");
+  });
+
+  it("keeps a returning user signed in for thirty days", () => {
+    const now = new Date("2026-07-14T12:00:00.000Z");
+    expect(newSessionExpiresAt(now).toISOString()).toBe("2026-08-13T12:00:00.000Z");
+    expect(sessionCookie(new Request("https://harborandhome.netlify.app"), "abc123", 3600, now))
+      .toContain("Expires=Tue, 14 Jul 2026 13:00:00 GMT");
   });
 
   it("clears sessions and safely parses cookie values", () => {
     const request = new Request("http://localhost/api/auth/sign-out", { headers: { cookie: "theme=sea; hh_session=hello%20world" } });
     expect(readCookie(request, "hh_session")).toBe("hello world");
     expect(clearSessionCookie(request)).toContain("Max-Age=0");
+    expect(clearSessionCookie(request)).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
     expect(readCookie(new Request("http://localhost", { headers: { cookie: "hh_session=%ZZ" } }), "hh_session")).toBeUndefined();
   });
 

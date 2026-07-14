@@ -8,6 +8,7 @@ import {
   clearSessionCookie,
   isAdminEmail,
   loginCodeHash,
+  newSessionExpiresAt,
   normalizeEmail,
   readCookie,
   requestIpHash,
@@ -153,7 +154,7 @@ async function handle(request: Request) {
     const data = await body(request, z.object({ email: z.string().trim().email().max(254), code: z.string().regex(/^\d{6}$/, "Enter the six-digit code.") }));
     const email = normalizeEmail(data.email);
     const rawToken = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString();
+    const expiresAt = newSessionExpiresAt().toISOString();
     const rows = await sql`
       SELECT verify_email_login(
         ${email},
@@ -166,6 +167,18 @@ async function handle(request: Request) {
     const result = rows[0]?.result as { ok: boolean; error?: string } | undefined;
     if (!result?.ok) return json({ error: result?.error ?? "That code is invalid or expired." }, 401);
     return jsonWithHeaders({ ok: true }, 200, { "Set-Cookie": sessionCookie(request, rawToken) });
+  }
+
+  if (request.method === "GET" && path === "auth/session") {
+    await verifySession(request, sql);
+    const token = readCookie(request, sessionCookieName)!;
+    const expiresAt = newSessionExpiresAt().toISOString();
+    await sql`
+      UPDATE app_sessions
+      SET expires_at = ${expiresAt}::timestamptz, last_seen_at = now()
+      WHERE token_hash = ${sessionTokenHash(token)} AND revoked_at IS NULL
+    `;
+    return jsonWithHeaders({ authenticated: true }, 200, { "Set-Cookie": sessionCookie(request, token) });
   }
 
   if (request.method === "POST" && path === "auth/sign-out") {
