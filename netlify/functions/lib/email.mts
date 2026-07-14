@@ -1,9 +1,15 @@
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import nodemailer from "nodemailer";
 
+export function normalizeGmailAppPassword(value: string | undefined): string {
+  return value?.replace(/\s+/g, "") ?? "";
+}
+
 function gmailConfig() {
   const user = process.env.GMAIL_USER?.trim();
-  const pass = process.env.GMAIL_APP_PASSWORD?.trim();
+  // Google displays app passwords in four groups. Accept values pasted with
+  // those spaces while passing the canonical 16 characters to SMTP.
+  const pass = normalizeGmailAppPassword(process.env.GMAIL_APP_PASSWORD);
   return user && pass ? { user, pass } : null;
 }
 

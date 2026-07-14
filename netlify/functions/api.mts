@@ -126,7 +126,13 @@ async function handle(request: Request) {
         subject: `${code} is your Harbor & Home sign-in code`,
         text: `Your Harbor & Home sign-in code is ${code}.\n\nIt expires in 10 minutes and can be used once. If you did not request it, you can ignore this email.`,
       });
-    } catch {
+    } catch (error) {
+      const mailError = error as { code?: unknown; responseCode?: unknown; command?: unknown };
+      console.error("Sign-in email delivery failed", {
+        code: String(mailError.code ?? "unknown"),
+        responseCode: String(mailError.responseCode ?? "unknown"),
+        command: String(mailError.command ?? "unknown"),
+      });
       await sql`DELETE FROM login_codes WHERE id = ${rows[0].id}::uuid`;
       return json({ error: "We could not send the sign-in email. Ask Sam or Lisa to check the Gmail settings." }, 503);
     }

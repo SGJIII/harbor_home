@@ -7,6 +7,7 @@ import {
   sessionCookie,
   sessionTokenHash,
 } from "../netlify/functions/lib/auth.mts";
+import { normalizeGmailAppPassword } from "../netlify/functions/lib/email.mts";
 
 const secret = "test-secret-that-is-longer-than-thirty-two-characters";
 
@@ -45,5 +46,10 @@ describe("passwordless authentication security", () => {
     expect(readCookie(request, "hh_session")).toBe("hello world");
     expect(clearSessionCookie(request)).toContain("Max-Age=0");
     expect(readCookie(new Request("http://localhost", { headers: { cookie: "hh_session=%ZZ" } }), "hh_session")).toBeUndefined();
+  });
+
+  it("accepts the grouped format Google shows for app passwords", () => {
+    expect(normalizeGmailAppPassword("abcd efgh ijkl mnop")).toBe("abcdefghijklmnop");
+    expect(normalizeGmailAppPassword("abcd\nefgh\tijkl mnop")).toBe("abcdefghijklmnop");
   });
 });
