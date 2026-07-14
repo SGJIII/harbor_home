@@ -1,11 +1,23 @@
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import nodemailer from "nodemailer";
 
+function gmailConfig() {
+  const user = process.env.GMAIL_USER?.trim();
+  const pass = process.env.GMAIL_APP_PASSWORD?.trim();
+  return user && pass ? { user, pass } : null;
+}
+
+export async function sendEmailNow(message: { to: string; subject: string; text: string }) {
+  const config = gmailConfig();
+  if (!config) throw new Error("Gmail delivery is not configured.");
+  const transport = nodemailer.createTransport({ service: "gmail", auth: config });
+  await transport.sendMail({ from: config.user, ...message });
+}
+
 export async function flushEmailOutbox(sql: NeonQueryFunction<false, false>, limit = 10) {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return { sent: 0, skipped: true };
-  const transport = nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
+  const config = gmailConfig();
+  if (!config) return { sent: 0, skipped: true };
+  const transport = nodemailer.createTransport({ service: "gmail", auth: config });
   const rows = await sql`
     SELECT id, recipient, subject, text_body FROM email_outbox
     WHERE sent_at IS NULL AND next_attempt_at <= now() AND attempts < 8
@@ -14,7 +26,7 @@ export async function flushEmailOutbox(sql: NeonQueryFunction<false, false>, lim
   let sent = 0;
   for (const row of rows as Array<Record<string, string>>) {
     try {
-      await transport.sendMail({ from: user, to: row.recipient, subject: row.subject, text: row.text_body });
+      await transport.sendMail({ from: config.user, to: row.recipient, subject: row.subject, text: row.text_body });
       await sql`UPDATE email_outbox SET sent_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = ${row.id}::uuid`;
       sent += 1;
     } catch (error) {

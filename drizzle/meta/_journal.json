@@ -8,6 +8,13 @@
       "when": 1783986000000,
       "tag": "0001_family_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783995374000,
+      "tag": "0002_email_code_auth",
+      "breakpoints": true
     }
   ]
 }

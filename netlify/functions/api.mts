@@ -1,14 +1,30 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { getStore } from "@netlify/blobs";
 import sharp from "sharp";
 import { z } from "zod";
-import { flushEmailOutbox } from "./lib/email.mts";
-import { getOrCreateAppUser, requireActive, requireAdmin, tokenHash, verifySession, type AppUser } from "./lib/auth.mts";
+import { flushEmailOutbox, sendEmailNow } from "./lib/email.mts";
+import {
+  clearSessionCookie,
+  isAdminEmail,
+  loginCodeHash,
+  normalizeEmail,
+  readCookie,
+  requestIpHash,
+  requireActive,
+  requireAdmin,
+  sessionCookie,
+  sessionCookieName,
+  sessionTokenHash,
+  tokenHash,
+  verifySession,
+  type AppUser,
+} from "./lib/auth.mts";
 import { importListing } from "./lib/importer.mts";
 
 const jsonHeaders = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: jsonHeaders });
+const jsonWithHeaders = (value: unknown, status: number, headers: Record<string, string>) => new Response(JSON.stringify(value), { status, headers: { ...jsonHeaders, ...headers } });
 
 function database() {
   if (!process.env.DATABASE_URL) throw new Response(JSON.stringify({ error: "Database is not configured." }), { status: 503 });
@@ -80,16 +96,77 @@ async function loadState(sql: NeonQueryFunction<false, false>, user: AppUser) {
 
 async function handle(request: Request) {
   const sql = database();
-  const session = await verifySession(request);
-  const user = await getOrCreateAppUser(sql, session);
   const path = routePath(request);
+
+  if (request.method === "POST" && path === "auth/request-code") {
+    const data = await body(request, z.object({ email: z.string().trim().email().max(254) }));
+    const email = normalizeEmail(data.email);
+    const ipHash = requestIpHash(request);
+    const recent = await sql`
+      SELECT
+        count(*) FILTER (WHERE email = ${email})::int AS email_count,
+        count(*) FILTER (WHERE request_ip_hash = ${ipHash})::int AS ip_count
+      FROM login_codes WHERE created_at > now() - interval '15 minutes'
+    `;
+    const counts = recent[0] as { email_count: number; ip_count: number };
+    if (counts.email_count >= 3 || counts.ip_count >= 10) {
+      return json({ error: "Too many codes were requested. Wait 15 minutes and try again." }, 429);
+    }
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+    await sql`UPDATE login_codes SET consumed_at = now() WHERE email = ${email} AND consumed_at IS NULL`;
+    const rows = await sql`
+      INSERT INTO login_codes(email, code_hash, request_ip_hash, expires_at)
+      VALUES (${email}, ${loginCodeHash(email, code)}, ${ipHash}, now() + interval '10 minutes')
+      RETURNING id
+    `;
+    try {
+      await sendEmailNow({
+        to: email,
+        subject: `${code} is your Harbor & Home sign-in code`,
+        text: `Your Harbor & Home sign-in code is ${code}.\n\nIt expires in 10 minutes and can be used once. If you did not request it, you can ignore this email.`,
+      });
+    } catch {
+      await sql`DELETE FROM login_codes WHERE id = ${rows[0].id}::uuid`;
+      return json({ error: "We could not send the sign-in email. Ask Sam or Lisa to check the Gmail settings." }, 503);
+    }
+    await sql`DELETE FROM login_codes WHERE expires_at < now() - interval '1 day'`;
+    return json({ ok: true, email });
+  }
+
+  if (request.method === "POST" && path === "auth/verify-code") {
+    const data = await body(request, z.object({ email: z.string().trim().email().max(254), code: z.string().regex(/^\d{6}$/, "Enter the six-digit code.") }));
+    const email = normalizeEmail(data.email);
+    const rawToken = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString();
+    const rows = await sql`
+      SELECT verify_email_login(
+        ${email},
+        ${loginCodeHash(email, data.code)},
+        ${sessionTokenHash(rawToken)},
+        ${expiresAt}::timestamptz,
+        ${isAdminEmail(email)}
+      ) AS result
+    `;
+    const result = rows[0]?.result as { ok: boolean; error?: string } | undefined;
+    if (!result?.ok) return json({ error: result?.error ?? "That code is invalid or expired." }, 401);
+    return jsonWithHeaders({ ok: true }, 200, { "Set-Cookie": sessionCookie(request, rawToken) });
+  }
+
+  if (request.method === "POST" && path === "auth/sign-out") {
+    const token = readCookie(request, sessionCookieName);
+    if (token) await sql`UPDATE app_sessions SET revoked_at = now() WHERE token_hash = ${sessionTokenHash(token)} AND revoked_at IS NULL`;
+    return jsonWithHeaders({ ok: true }, 200, { "Set-Cookie": clearSessionCookie(request) });
+  }
+
+  const user = await verifySession(request, sql);
 
   if (request.method === "GET" && path === "bootstrap") return json({ state: await loadState(sql, user) });
 
   if (request.method === "POST" && path === "profile/onboarding") {
-    const data = await body(request, z.object({ relationship: z.string().trim().min(2).max(300) }));
-    await sql`UPDATE profiles SET relationship = ${data.relationship}, status = CASE WHEN role = 'admin' THEN status ELSE 'pending'::access_status END, updated_at = now() WHERE id = ${user.id}`;
-    await sql`INSERT INTO audit_log(actor_id, action, subject_type, subject_id, detail) VALUES (${user.id}, 'access_requested', 'profile', ${user.id}, ${JSON.stringify({ relationship: data.relationship })}::jsonb)`;
+    const data = await body(request, z.object({ name: z.string().trim().min(2).max(120), relationship: z.string().trim().min(2).max(300) }));
+    await sql`UPDATE profiles SET name = ${data.name}, relationship = ${data.relationship}, status = CASE WHEN role = 'admin' THEN status ELSE 'pending'::access_status END, updated_at = now() WHERE id = ${user.id}`;
+    await sql`INSERT INTO audit_log(actor_id, action, subject_type, subject_id, detail) VALUES (${user.id}, 'access_requested', 'profile', ${user.id}, ${JSON.stringify(data)}::jsonb)`;
     return json({ ok: true });
   }
 
@@ -318,7 +395,7 @@ export default async function handler(request: Request) {
   } catch (error) {
     if (error instanceof Response) return new Response(error.body, { status: error.status, headers: { ...jsonHeaders, ...Object.fromEntries(error.headers) } });
     console.error(error);
-    return json({ error: error instanceof Error ? error.message : "Unexpected server error." }, 500);
+    return json({ error: "Unexpected server error." }, 500);
   }
 }
 

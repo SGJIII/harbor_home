@@ -1,60 +1,103 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 
-export interface SessionUser {
+export interface AppUser {
   id: string;
   email: string;
   name: string;
-}
-
-export interface AppUser extends SessionUser {
   role: "admin" | "guest";
   status: "pending" | "active" | "suspended";
   relationship: string;
 }
 
-function adminEmails(): Set<string> {
-  return new Set((process.env.ADMIN_EMAILS ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
+export const sessionCookieName = "hh_session";
+
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
 }
 
-export async function verifySession(request: Request): Promise<SessionUser> {
-  if (process.env.ALLOW_DEMO_AUTH === "true") {
-    const demo = request.headers.get("x-demo-user");
-    if (demo) return { id: `demo:${demo.toLowerCase()}`, email: demo.toLowerCase(), name: demo.split("@")[0] };
+function configuredSecret(): string {
+  const secret = process.env.AUTH_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Response(JSON.stringify({ error: "Email sign-in is not configured." }), { status: 503 });
   }
-
-  const base = process.env.NEON_AUTH_BASE_URL?.replace(/\/$/, "");
-  if (!base) throw new Response(JSON.stringify({ error: "Authentication is not configured." }), { status: 503 });
-  const headers = new Headers({ Accept: "application/json" });
-  const authorization = request.headers.get("authorization");
-  const cookie = request.headers.get("cookie");
-  if (authorization) headers.set("authorization", authorization);
-  if (cookie) headers.set("cookie", cookie);
-
-  const response = await fetch(`${base}/get-session`, { headers, signal: AbortSignal.timeout(8_000) });
-  if (!response.ok) throw new Response(JSON.stringify({ error: "Please sign in to continue." }), { status: 401 });
-  const payload = await response.json() as Record<string, unknown>;
-  const nested = (payload.data ?? payload) as Record<string, unknown>;
-  const raw = (nested.user ?? payload.user) as Record<string, unknown> | undefined;
-  if (!raw?.id || !raw.email) throw new Response(JSON.stringify({ error: "Please sign in to continue." }), { status: 401 });
-  return { id: String(raw.id), email: String(raw.email).toLowerCase(), name: String(raw.name ?? raw.email) };
+  return secret;
 }
 
-export async function getOrCreateAppUser(sql: NeonQueryFunction<false, false>, session: SessionUser): Promise<AppUser> {
-  const role = adminEmails().has(session.email) ? "admin" : "guest";
-  const status = role === "admin" ? "active" : "pending";
+function hmac(value: string, secret = configuredSecret()): string {
+  return createHmac("sha256", secret).update(value, "utf8").digest("hex");
+}
+
+export function loginCodeHash(email: string, code: string, secret?: string): string {
+  return hmac(`login-code:${normalizeEmail(email)}:${code}`, secret);
+}
+
+export function sessionTokenHash(token: string, secret?: string): string {
+  return hmac(`session:${token}`, secret);
+}
+
+export function requestIp(request: Request): string {
+  return request.headers.get("x-nf-client-connection-ip")
+    ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? "unknown";
+}
+
+export function requestIpHash(request: Request, secret?: string): string {
+  return hmac(`request-ip:${requestIp(request)}`, secret);
+}
+
+export function readCookie(request: Request, name: string): string | undefined {
+  const header = request.headers.get("cookie") ?? "";
+  for (const part of header.split(";")) {
+    const [key, ...value] = part.trim().split("=");
+    if (key === name) {
+      try { return decodeURIComponent(value.join("=")); }
+      catch { return undefined; }
+    }
+  }
+  return undefined;
+}
+
+function isHttps(request: Request): boolean {
+  return request.headers.get("x-forwarded-proto") === "https" || new URL(request.url).protocol === "https:";
+}
+
+export function sessionCookie(request: Request, token: string, maxAgeSeconds = 60 * 60 * 24 * 30): string {
+  return [
+    `${sessionCookieName}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    isHttps(request) ? "Secure" : "",
+    `Max-Age=${maxAgeSeconds}`,
+  ].filter(Boolean).join("; ");
+}
+
+export function clearSessionCookie(request: Request): string {
+  return sessionCookie(request, "", 0);
+}
+
+export function isAdminEmail(email: string): boolean {
+  const admins = new Set((process.env.ADMIN_EMAILS ?? "").split(",").map(normalizeEmail).filter(Boolean));
+  return admins.has(normalizeEmail(email));
+}
+
+export async function verifySession(request: Request, sql: NeonQueryFunction<false, false>): Promise<AppUser> {
+  const token = readCookie(request, sessionCookieName);
+  if (!token || token.length < 32) {
+    throw new Response(JSON.stringify({ error: "Please sign in to continue." }), { status: 401 });
+  }
   const rows = await sql`
-    INSERT INTO profiles(id, email, name, role, status)
-    VALUES (${session.id}, ${session.email}, ${session.name}, ${role}, ${status})
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      name = CASE WHEN profiles.name = '' THEN EXCLUDED.name ELSE profiles.name END,
-      role = CASE WHEN EXCLUDED.role = 'admin' THEN 'admin'::app_role ELSE profiles.role END,
-      status = CASE WHEN EXCLUDED.role = 'admin' THEN 'active'::access_status ELSE profiles.status END,
-      updated_at = now()
-    RETURNING id, email, name, relationship, role, status
+    SELECT p.id, p.email, p.name, p.relationship, p.role, p.status, s.id AS session_id
+    FROM app_sessions s JOIN profiles p ON p.id = s.profile_id
+    WHERE s.token_hash = ${sessionTokenHash(token)}
+      AND s.revoked_at IS NULL AND s.expires_at > now()
+    LIMIT 1
   `;
-  return rows[0] as AppUser;
+  const row = rows[0] as (AppUser & { session_id: string }) | undefined;
+  if (!row) throw new Response(JSON.stringify({ error: "Your sign-in expired. Request a new code." }), { status: 401 });
+  await sql`UPDATE app_sessions SET last_seen_at = now() WHERE id = ${row.session_id}::uuid AND last_seen_at < now() - interval '1 hour'`;
+  return { id: row.id, email: row.email, name: row.name, relationship: row.relationship, role: row.role, status: row.status };
 }
 
 export function requireActive(user: AppUser) {

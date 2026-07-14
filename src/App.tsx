@@ -47,7 +47,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { authClient, isDemoMode } from "./auth";
+import { isDemoMode } from "./auth";
 import { demoState, demoWeekend } from "./data/demo";
 import {
   contiguousStayLength,
@@ -126,7 +126,7 @@ function LandingPage() {
         <Brand />
         <div className="nav-actions">
           <span className="private-pill"><LockKeyhole size={14} /> Private family space</span>
-          <button className="button button-ink button-small" onClick={begin}>Sign in with Google</button>
+          <button className="button button-ink button-small" onClick={begin}>Sign in with email</button>
         </div>
       </header>
 
@@ -186,33 +186,44 @@ function LandingPage() {
 }
 
 function AuthPage() {
-  const { pathname = "sign-in" } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const requested = new URLSearchParams(location.search).get("returnTo");
   const redirectTo = requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/book";
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const client = authClient;
-  if (!client) return <Navigate to="/book" replace />;
-  const signIn = async () => {
+  if (isDemoMode) return <Navigate to="/book" replace />;
+  const requestCode = async (event: FormEvent) => {
+    event.preventDefault();
     setBusy(true); setError(null);
     try {
-      const result = await client.signIn.social({ provider: "google", callbackURL: redirectTo });
-      if (result.error) setError(result.error.message ?? "Google sign-in could not start.");
-    } catch (signInError) { setError(signInError instanceof Error ? signInError.message : "Google sign-in could not start."); }
+      await apiRequest("/auth/request-code", { method: "POST", body: JSON.stringify({ email }) });
+      setSent(true);
+    } catch (signInError) { setError(signInError instanceof Error ? signInError.message : "The sign-in email could not be sent."); }
+    finally { setBusy(false); }
+  };
+  const verifyCode = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true); setError(null);
+    try {
+      await apiRequest("/auth/verify-code", { method: "POST", body: JSON.stringify({ email, code }) });
+      navigate(redirectTo, { replace: true });
+    } catch (verifyError) { setError(verifyError instanceof Error ? verifyError.message : "That code could not be verified."); }
     finally { setBusy(false); }
   };
   return (
     <main className="auth-page">
       <Brand />
-      <div className="auth-shell"><p className="eyebrow">PRIVATE FAMILY SPACE</p><h1>{pathname === "sign-up" ? "Join Harbor & Home" : "Welcome back"}</h1><p>Use Google to continue. New guests will introduce themselves, then wait for Sam or Lisa to approve access.</p>{error && <div className="inline-alert"><CircleAlert size={17} /> {error}</div>}<button className="button button-ink button-full" disabled={busy} onClick={signIn}><KeyRound size={18} /> {busy ? "Opening Google…" : "Continue with Google"}</button><small>Exact addresses and calendars stay private until approval.</small></div>
+      <div className="auth-shell"><p className="eyebrow">PRIVATE FAMILY SPACE</p><h1>{sent ? "Check your email" : "Welcome"}</h1><p>{sent ? `We sent a six-digit code to ${email}. It expires in ten minutes.` : "Enter your email and we’ll send a one-time sign-in code. No password or Google account setup required."}</p>{error && <div className="inline-alert"><CircleAlert size={17} /> {error}</div>}{!sent ? <form className="auth-form" onSubmit={requestCode}><label className="field-label"><span>Email address</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required /></label><button className="button button-ink button-full" disabled={busy}><Mail size={18} /> {busy ? "Sending code…" : "Email me a sign-in code"}</button></form> : <form className="auth-form" onSubmit={verifyCode}><label className="field-label"><span>Six-digit code</span><input className="code-input" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" pattern="[0-9]{6}" required autoFocus /></label><button className="button button-coral button-full" disabled={busy || code.length !== 6}><KeyRound size={18} /> {busy ? "Checking code…" : "Sign in"}</button><button type="button" className="button button-quiet button-full" onClick={() => { setSent(false); setCode(""); setError(null); }}>Use a different email</button></form>}<small>New guests stay pending until Sam or Lisa approves them.</small></div>
     </main>
   );
 }
 
 function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { currentUser, state, setCurrentUserId } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const unread = state.notifications.filter((note) => note.userId === currentUser.id && !note.read).length;
@@ -221,7 +232,7 @@ function AppShell({ children }: { children: ReactNode }) {
     { to: "/stays", label: "My stays", icon: CalendarDays },
     ...(currentUser.role === "admin" ? [{ to: "/admin", label: "Host tools", icon: Settings2 }] : []),
   ];
-  const signOut = async () => { if (authClient) await authClient.signOut(); navigate("/"); };
+  const signOut = async () => { await apiRequest("/auth/sign-out", { method: "POST" }).catch(() => undefined); window.location.assign("/"); };
 
   return (
     <div className="app-layout">
@@ -582,9 +593,9 @@ function PartyPage() {
 }
 
 function OnboardingPage() {
-  const navigate = useNavigate(); const { currentUser, setState, showToast } = useApp(); const [relationship, setRelationship] = useState(currentUser.relationship);
-  const submit = async (event: FormEvent) => { event.preventDefault(); if (!isDemoMode) { try { await apiRequest("/profile/onboarding", { method: "POST", body: JSON.stringify({ relationship }) }); } catch (error) { return showToast(error instanceof Error ? error.message : "Request failed.", "error"); } } setState((current) => ({ ...current, profiles: current.profiles.map((profile) => profile.id === currentUser.id ? { ...profile, relationship, status: "pending" } : profile) })); showToast("Thanks—Sam or Lisa will review your request."); navigate("/pending"); };
-  return <main className="onboarding-page"><Brand /><form onSubmit={submit}><p className="eyebrow">ONE QUICK INTRODUCTION</p><h1>How do you know Sam or Lisa?</h1><p>This helps the hosts put you in the right booking categories. You can’t assign yourself special access.</p><label className="field-label"><span>Your relationship</span><input value={relationship} onChange={(event) => setRelationship(event.target.value)} placeholder="Lisa’s cousin, Sam’s college friend…" required /></label><button className="button button-coral button-full">Request access <ArrowRight size={17} /></button></form></main>;
+  const navigate = useNavigate(); const { currentUser, setState, showToast } = useApp(); const [name, setName] = useState(currentUser.name); const [relationship, setRelationship] = useState(currentUser.relationship); const [busy, setBusy] = useState(false);
+  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); if (!isDemoMode) { try { await apiRequest("/profile/onboarding", { method: "POST", body: JSON.stringify({ name, relationship }) }); } catch (error) { setBusy(false); return showToast(error instanceof Error ? error.message : "Request failed.", "error"); } } setState((current) => ({ ...current, profiles: current.profiles.map((profile) => profile.id === currentUser.id ? { ...profile, name, relationship, status: "pending" } : profile) })); showToast("Thanks—Sam or Lisa will review your request."); navigate("/pending"); };
+  return <main className="onboarding-page"><Brand /><form onSubmit={submit}><p className="eyebrow">ONE QUICK INTRODUCTION</p><h1>How do you know Sam or Lisa?</h1><p>This helps the hosts put you in the right booking categories. You can’t assign yourself special access.</p><label className="field-label"><span>Your full name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="Your name" minLength={2} maxLength={120} required /></label><label className="field-label"><span>Your relationship</span><input value={relationship} onChange={(event) => setRelationship(event.target.value)} placeholder="Lisa’s cousin, Sam’s college friend…" minLength={2} maxLength={300} required /></label><button className="button button-coral button-full" disabled={busy}>{busy ? "Sending request…" : <>Request access <ArrowRight size={17} /></>}</button></form></main>;
 }
 
 function PendingPage() { return <main className="pending-page"><Brand /><div><span><Mail size={26} /></span><p className="eyebrow">REQUEST RECEIVED</p><h1>You’re on the list.</h1><p>Sam or Lisa will choose your booking categories. We’ll email you when the private room calendar opens.</p><Link to="/">Back home</Link></div></main>; }
@@ -632,6 +643,6 @@ export default function App() {
   }, [location.pathname, location.search, publicPage, serverState]);
 
   if (loading) return <div className="app-loading"><Brand /><span /><p>Opening the family calendar…</p></div>;
-  if (loadError) { const returnTo = `${location.pathname}${location.search}`; return <div className="app-loading error"><CircleAlert /><h1>We couldn’t open the calendar.</h1><p>{loadError}</p><Link className="button button-ink" to={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>Sign in with Google</Link><Link to="/">Back home</Link></div>; }
+  if (loadError) { const returnTo = `${location.pathname}${location.search}`; return <div className="app-loading error"><CircleAlert /><h1>We couldn’t open the calendar.</h1><p>{loadError}</p><Link className="button button-ink" to={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}>Sign in with email</Link><Link to="/">Back home</Link></div>; }
   return <AppProvider key={serverState?.profiles[0]?.id ?? "demo"} initialState={serverState ?? demoState}><AppRoutes /></AppProvider>;
 }

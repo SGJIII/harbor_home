@@ -18,7 +18,6 @@
     "deploy": "netlify deploy --prod"
   },
   "dependencies": {
-    "@neondatabase/neon-js": "latest",
     "@neondatabase/serverless": "latest",
     "@netlify/blobs": "latest",
     "@netlify/functions": "latest",
@@ -45,7 +44,6 @@
     "vitest": "latest"
   },
   "overrides": {
-    "better-auth": "1.6.23",
     "undici": "7.28.0",
     "@opentelemetry/core": "2.9.0",
     "@opentelemetry/resources": "2.9.0",

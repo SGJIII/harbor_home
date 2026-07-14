@@ -31,6 +31,30 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("profiles_email_uq").on(table.email)]);
 
+export const loginCodes = pgTable("login_codes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  codeHash: text("code_hash").notNull(),
+  requestIpHash: text("request_ip_hash").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("login_codes_email_created_idx").on(table.email, table.createdAt)]);
+
+export const appSessions = pgTable("app_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: text("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("app_sessions_token_hash_uq").on(table.tokenHash),
+  index("app_sessions_profile_idx").on(table.profileId, table.expiresAt),
+]);
+
 export const categories = pgTable("categories", {
   id: uuid("id").defaultRandom().primaryKey(),
   slug: text("slug").notNull(),
