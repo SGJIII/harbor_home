@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "netlify/**/*.ts", "netlify/**/*.mts", "db/**/*.ts", "drizzle.config.ts", "tests/**/*.ts", "src/lib/bookingRules.ts", "src/types.ts"]
+}

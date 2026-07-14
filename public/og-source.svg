@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Harbor &amp; Home</title>
+  <desc id="description">Rooms for the people we love.</desc>
+  <rect width="1200" height="630" fill="#f7f1e6"/>
+  <circle cx="1030" cy="105" r="210" fill="#efc2a7" opacity=".72"/>
+  <path d="M0 475C170 408 315 520 500 470C700 416 802 374 1000 435C1080 460 1145 461 1200 443V630H0Z" fill="#7eaba8"/>
+  <path d="M0 522C170 465 328 571 520 518C730 460 864 449 1037 497C1095 513 1150 512 1200 499V630H0Z" fill="#315f62" opacity=".93"/>
+  <g transform="translate(775 190)">
+    <path d="M35 160L210 30L385 160" fill="none" stroke="#1e3537" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="74" y="148" width="270" height="190" rx="5" fill="#fffaf0" stroke="#1e3537" stroke-width="10"/>
+    <rect x="183" y="223" width="60" height="115" rx="3" fill="#ef826b" stroke="#1e3537" stroke-width="8"/>
+    <rect x="103" y="202" width="46" height="54" rx="2" fill="#b9d5d0" stroke="#1e3537" stroke-width="7"/>
+    <rect x="278" y="202" width="46" height="54" rx="2" fill="#b9d5d0" stroke="#1e3537" stroke-width="7"/>
+    <path d="M258 72V18H315V115" fill="#fffaf0" stroke="#1e3537" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+  <g fill="#1e3537">
+    <text x="92" y="150" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="4">A PRIVATE FAMILY SPACE</text>
+    <text x="88" y="255" font-family="Georgia, Times New Roman, serif" font-size="84" font-weight="700">Harbor <tspan font-style="italic" font-weight="400">&amp;</tspan></text>
+    <text x="88" y="340" font-family="Georgia, Times New Roman, serif" font-size="84" font-weight="700">Home</text>
+    <text x="92" y="405" font-family="Arial, Helvetica, sans-serif" font-size="29" letter-spacing=".5">Rooms for the people we love.</text>
+  </g>
+  <g transform="translate(90 82)" fill="none" stroke="#ef826b" stroke-width="7" stroke-linecap="round">
+    <path d="M0 15C12 3 24 3 36 15C48 27 60 27 72 15"/>
+    <path d="M0 31C12 19 24 19 36 31C48 43 60 43 72 31" opacity=".6"/>
+  </g>
+</svg>
