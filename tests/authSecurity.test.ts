@@ -68,16 +68,16 @@ describe("passwordless authentication security", () => {
     expect(emailDeliveryErrorMessage(error)).not.toContain("sensitive provider detail");
   });
 
-  it("derives host access only from the configured Sam and Lisa email addresses", () => {
-    vi.stubEnv("ADMIN_EMAILS", "samueljoh@gmail.com,lisasboehm@gmail.com");
+  it("derives host access only from configured host email addresses", () => {
+    vi.stubEnv("ADMIN_EMAILS", "sam@example.test,lisa@example.test");
 
-    expect(isAdminEmail(" SamuelJoh@GMAIL.com ")).toBe(true);
-    expect(roleForEmail("lisasboehm@gmail.com")).toBe("admin");
+    expect(isAdminEmail(" Sam@EXAMPLE.test ")).toBe(true);
+    expect(roleForEmail("lisa@example.test")).toBe("admin");
     expect(roleForEmail("friend@example.com")).toBe("guest");
   });
 
   it("rejects a forged database admin role for an email outside the host allowlist", () => {
-    vi.stubEnv("ADMIN_EMAILS", "samueljoh@gmail.com,lisasboehm@gmail.com");
+    vi.stubEnv("ADMIN_EMAILS", "sam@example.test,lisa@example.test");
     const outsider: AppUser = {
       id: "outsider",
       email: "friend@example.com",
@@ -88,6 +88,6 @@ describe("passwordless authentication security", () => {
     };
 
     expect(() => requireAdmin(outsider)).toThrow(Response);
-    expect(() => requireAdmin({ ...outsider, email: "samueljoh@gmail.com" })).not.toThrow();
+    expect(() => requireAdmin({ ...outsider, email: "sam@example.test" })).not.toThrow();
   });
 });
