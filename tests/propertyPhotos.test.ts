@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { propertyPhotoSets } from "../src/data/propertyPhotos";
+import { cyclePhotoIndex, propertyPhotoSets } from "../src/data/propertyPhotos";
 
 describe("property photos", () => {
   it("provides an attributed gallery for both published properties", () => {
@@ -15,5 +15,11 @@ describe("property photos", () => {
     expect(propertyPhotoSets["rockaway-house"].sourceUrl).toContain("zillow.com");
     expect(propertyPhotoSets["second-getaway"].sourceUrl).toContain("airbnb.com");
     expect(new Set(Object.values(propertyPhotoSets).flatMap((photoSet) => photoSet.photos.map((photo) => photo.src))).size).toBe(8);
+  });
+
+  it("cycles continuously from the first and last photos", () => {
+    expect(cyclePhotoIndex(0, -1, 4)).toBe(3);
+    expect(cyclePhotoIndex(3, 1, 4)).toBe(0);
+    expect(cyclePhotoIndex(1, 1, 4)).toBe(2);
   });
 });

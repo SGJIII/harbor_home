@@ -5,6 +5,8 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
   ExternalLink,
@@ -50,7 +52,7 @@ import {
 import { isDemoMode } from "./auth";
 import { demoState, demoWeekend } from "./data/demo";
 import { personalPhotos } from "./data/personalPhotos";
-import { propertyPhotoSets } from "./data/propertyPhotos";
+import { cyclePhotoIndex, propertyPhotoSets } from "./data/propertyPhotos";
 import {
   contiguousStayLength,
   findFirstFallback,
@@ -349,12 +351,97 @@ function RoomCard({ room, property, range, onBook }: { room: Room; property: Pro
 
 function PropertyPhotoGallery({ property }: { property: Property }) {
   const photoSet = propertyPhotoSets[property.slug];
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const lastTriggerRef = useRef<HTMLButtonElement>(null);
+  const touchStartX = useRef<number | null>(null);
+  const galleryOpen = activeIndex !== null;
+  const photoCount = photoSet?.photos.length ?? 0;
+
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setActiveIndex(null);
+        window.setTimeout(() => lastTriggerRef.current?.focus(), 0);
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        setActiveIndex((current) => current === null ? null : cyclePhotoIndex(current, direction, photoCount));
+      }
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [galleryOpen, photoCount]);
+
   if (!photoSet) return null;
+  const activePhoto = activeIndex === null ? null : photoSet.photos[activeIndex];
+  const movePhoto = (direction: -1 | 1) => setActiveIndex((current) => current === null ? null : cyclePhotoIndex(current, direction, photoCount));
+  const closeGallery = () => {
+    setActiveIndex(null);
+    window.setTimeout(() => lastTriggerRef.current?.focus(), 0);
+  };
+
   return <figure className="property-gallery">
     <div className="property-photo-grid">
-      {photoSet.photos.map((photo) => <a key={photo.src} href={photo.src} target="_blank" rel="noreferrer" aria-label={`Open full-size photo: ${photo.alt}`}><img src={photo.src} alt={photo.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" /></a>)}
+      {photoSet.photos.map((photo, index) => <button
+        type="button"
+        className="property-photo-trigger"
+        key={photo.src}
+        aria-label={`View photo ${index + 1} of ${photoCount}: ${photo.alt}`}
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          lastTriggerRef.current = event.currentTarget;
+          setActiveIndex(index);
+        }}
+      ><img src={photo.src} alt={photo.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" /></button>)}
     </div>
     <figcaption><span>Listing photos from {photoSet.sourceName}</span><a href={photoSet.sourceUrl} target="_blank" rel="noreferrer">View original listing <ExternalLink size={12} /></a></figcaption>
+    {activePhoto && activeIndex !== null && <div
+      className="photo-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${property.name} photo gallery`}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) closeGallery(); }}
+    >
+      <button ref={closeButtonRef} type="button" className="photo-lightbox-close" onClick={closeGallery} aria-label="Close photo gallery"><X size={22} /></button>
+      <div className="photo-lightbox-main">
+        <button type="button" className="photo-lightbox-arrow" onClick={() => movePhoto(-1)} aria-label="Previous photo"><ChevronLeft size={28} /></button>
+        <div
+          className="photo-lightbox-slide"
+          onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null; }}
+          onTouchEnd={(event) => {
+            const startX = touchStartX.current;
+            const endX = event.changedTouches[0]?.clientX;
+            touchStartX.current = null;
+            if (startX === null || endX === undefined || Math.abs(endX - startX) < 45) return;
+            movePhoto(endX < startX ? 1 : -1);
+          }}
+        >
+          <img className="photo-lightbox-image" src={activePhoto.src} alt={activePhoto.alt} decoding="async" />
+          <div className="photo-lightbox-caption"><span>{activePhoto.alt}</span><strong aria-live="polite">{activeIndex + 1} / {photoCount}</strong></div>
+        </div>
+        <button type="button" className="photo-lightbox-arrow" onClick={() => movePhoto(1)} aria-label="Next photo"><ChevronRight size={28} /></button>
+      </div>
+      <div className="photo-lightbox-thumbnails" aria-label="Choose a photo">
+        {photoSet.photos.map((photo, index) => <button
+          type="button"
+          key={photo.src}
+          className={index === activeIndex ? "photo-lightbox-thumbnail active" : "photo-lightbox-thumbnail"}
+          aria-label={`View photo ${index + 1}: ${photo.alt}`}
+          aria-pressed={index === activeIndex}
+          onClick={() => setActiveIndex(index)}
+        ><img src={photo.src} alt="" decoding="async" /></button>)}
+      </div>
+    </div>}
   </figure>;
 }
 

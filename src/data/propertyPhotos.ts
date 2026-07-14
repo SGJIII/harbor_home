@@ -9,6 +9,11 @@ export interface PropertyPhotoSet {
   photos: PropertyPhoto[];
 }
 
+export function cyclePhotoIndex(currentIndex: number, direction: -1 | 1, photoCount: number) {
+  if (photoCount <= 0) return 0;
+  return (currentIndex + direction + photoCount) % photoCount;
+}
+
 export const propertyPhotoSets: Record<string, PropertyPhotoSet> = {
   "rockaway-house": {
     sourceName: "Zillow",
