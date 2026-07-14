@@ -5,6 +5,23 @@ export function normalizeGmailAppPassword(value: string | undefined): string {
   return value?.replace(/\s+/g, "") ?? "";
 }
 
+export function emailDeliveryDiagnostic(error: unknown) {
+  const mailError = error as { code?: unknown; responseCode?: unknown; command?: unknown };
+  return {
+    code: String(mailError?.code ?? "unknown"),
+    responseCode: String(mailError?.responseCode ?? "unknown"),
+    command: String(mailError?.command ?? "unknown"),
+  };
+}
+
+export function emailDeliveryErrorMessage(error: unknown): string {
+  const diagnostic = emailDeliveryDiagnostic(error);
+  if (diagnostic.code === "EAUTH" || diagnostic.responseCode === "535") {
+    return "Gmail rejected the app password. Create a new 16-character Google app password and update GMAIL_APP_PASSWORD in Netlify.";
+  }
+  return "We could not send the sign-in email. Ask Sam or Lisa to check the Gmail settings.";
+}
+
 function gmailConfig() {
   const user = process.env.GMAIL_USER?.trim();
   // Google displays app passwords in four groups. Accept values pasted with

@@ -3,7 +3,7 @@ import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { getStore } from "@netlify/blobs";
 import sharp from "sharp";
 import { z } from "zod";
-import { flushEmailOutbox, sendEmailNow } from "./lib/email.mts";
+import { emailDeliveryDiagnostic, emailDeliveryErrorMessage, flushEmailOutbox, sendEmailNow } from "./lib/email.mts";
 import {
   clearSessionCookie,
   isAdminEmail,
@@ -127,14 +127,9 @@ async function handle(request: Request) {
         text: `Your Harbor & Home sign-in code is ${code}.\n\nIt expires in 10 minutes and can be used once. If you did not request it, you can ignore this email.`,
       });
     } catch (error) {
-      const mailError = error as { code?: unknown; responseCode?: unknown; command?: unknown };
-      console.error("Sign-in email delivery failed", {
-        code: String(mailError.code ?? "unknown"),
-        responseCode: String(mailError.responseCode ?? "unknown"),
-        command: String(mailError.command ?? "unknown"),
-      });
+      console.log("Sign-in email delivery diagnostic", emailDeliveryDiagnostic(error));
       await sql`DELETE FROM login_codes WHERE id = ${rows[0].id}::uuid`;
-      return json({ error: "We could not send the sign-in email. Ask Sam or Lisa to check the Gmail settings." }, 503);
+      return json({ error: emailDeliveryErrorMessage(error) }, 503);
     }
     await sql`DELETE FROM login_codes WHERE expires_at < now() - interval '1 day'`;
     return json({ ok: true, email });

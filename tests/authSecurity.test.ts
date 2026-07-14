@@ -7,7 +7,7 @@ import {
   sessionCookie,
   sessionTokenHash,
 } from "../netlify/functions/lib/auth.mts";
-import { normalizeGmailAppPassword } from "../netlify/functions/lib/email.mts";
+import { emailDeliveryDiagnostic, emailDeliveryErrorMessage, normalizeGmailAppPassword } from "../netlify/functions/lib/email.mts";
 
 const secret = "test-secret-that-is-longer-than-thirty-two-characters";
 
@@ -51,5 +51,12 @@ describe("passwordless authentication security", () => {
   it("accepts the grouped format Google shows for app passwords", () => {
     expect(normalizeGmailAppPassword("abcd efgh ijkl mnop")).toBe("abcdefghijklmnop");
     expect(normalizeGmailAppPassword("abcd\nefgh\tijkl mnop")).toBe("abcdefghijklmnop");
+  });
+
+  it("turns Gmail authentication failures into a useful, non-secret error", () => {
+    const error = { code: "EAUTH", responseCode: 535, command: "AUTH PLAIN", response: "sensitive provider detail" };
+    expect(emailDeliveryDiagnostic(error)).toEqual({ code: "EAUTH", responseCode: "535", command: "AUTH PLAIN" });
+    expect(emailDeliveryErrorMessage(error)).toContain("new 16-character Google app password");
+    expect(emailDeliveryErrorMessage(error)).not.toContain("sensitive provider detail");
   });
 });
