@@ -41,13 +41,13 @@ npm run build
 
 ### 1. Create the Neon database
 
-Create a free Neon Postgres project, copy its pooled connection string, and set it as `DATABASE_URL`. Neon Auth is not used. Apply the schema once:
+Create a free Neon Postgres project, copy its pooled connection string, and set it as `DATABASE_URL`. Neon Auth is not used. For local setup, apply the schema once:
 
 ```bash
 DATABASE_URL='postgresql://...' npm run db:migrate
 ```
 
-The migrations seed the default categories, Rockaway, and Luna in Playa Pelada. Property availability windows are enforced both in the server API and by a database trigger; checkout is the final allowed date and is excluded from occupancy.
+Netlify runs the same versioned migrations after each successful production build, before publishing the deploy. The migrations seed the default categories, Rockaway, and Luna in Playa Pelada. Property availability windows are enforced both in the server API and by a database trigger; checkout is the final allowed date and is excluded from occupancy.
 
 ### 2. Configure passwordless email
 
@@ -72,12 +72,12 @@ Sign-in codes are cryptographically random, expire after ten minutes, work once,
 
 Import [SGJIII/harbor_home](https://github.com/SGJIII/harbor_home) in Netlify, keep the detected settings from `netlify.toml`, and add the variables above under Site configuration → Environment variables. Deploy from `main`.
 
-The included configuration builds `dist`, deploys `netlify/functions`, routes `/api/*` to the protected API, supports SPA routes, and sends security headers. No OAuth callback configuration is needed.
+The included configuration builds `dist`, applies pending database migrations, deploys `netlify/functions`, routes `/api/*` to the protected API, supports SPA routes, and sends security headers. Scope `DATABASE_URL` to Builds and Functions in Netlify. No OAuth callback configuration is needed.
 
 After the first deployment:
 
 1. Request a code using each exact email in `ADMIN_EMAILS`; those accounts become active hosts automatically.
-2. Confirm the two Rockaway main-house bedroom capacities before publishing them as ADU fallbacks.
+2. Confirm the Rockaway ADU bed size when its furniture is finalized.
 3. Approve a test guest and verify a booking, priority move, parent blackout, party invitation, and email notification.
 
 ## Property specifications
@@ -101,5 +101,6 @@ Do not publish third-party listing photos merely because the importer found a UR
 - `npm run dev:netlify` — frontend plus Netlify Functions and configured services.
 - `npm test` — rule and security contract tests.
 - `npm run build` — strict TypeScript and production bundle.
+- `npm run build:netlify` — production bundle plus pending database migrations.
 - `npm run db:migrate` — apply migrations to `DATABASE_URL`.
 - `npm run deploy` — deploy to a linked Netlify site.
