@@ -73,7 +73,11 @@ async function loadState(sql: NeonQueryFunction<false, false>, user: AppUser) {
     isAdmin ? sql`SELECT id, email, name, relationship, status, role FROM profiles ORDER BY (id = ${user.id}) DESC, created_at` : sql`SELECT id, email, name, relationship, status, role FROM profiles WHERE id = ${user.id}`,
     isAdmin ? sql`SELECT profile_id, category_id FROM profile_categories` : sql`SELECT profile_id, category_id FROM profile_categories WHERE profile_id = ${user.id}`,
     user.status === "active" ? sql`SELECT * FROM properties WHERE status = 'active' OR ${isAdmin}` : sql`SELECT p.* FROM properties p WHERE EXISTS (SELECT 1 FROM events e JOIN event_access ea ON ea.event_id = e.id WHERE e.property_id = p.id AND ea.profile_id = ${user.id})`,
-    user.status === "active" ? sql`SELECT r.* FROM rooms r JOIN properties p ON p.id = r.property_id WHERE p.status = 'active' OR ${isAdmin}` : sql`SELECT r.* FROM rooms r WHERE EXISTS (SELECT 1 FROM event_rooms er JOIN event_access ea ON ea.event_id = er.event_id WHERE er.room_id = r.id AND ea.profile_id = ${user.id})`,
+    user.status === "active"
+      ? isAdmin
+        ? sql`SELECT r.* FROM rooms r JOIN properties p ON p.id = r.property_id WHERE p.status = 'active' OR ${isAdmin}`
+        : sql`SELECT r.* FROM rooms r JOIN properties p ON p.id = r.property_id WHERE p.status = 'active' AND r.status = 'active'`
+      : sql`SELECT r.* FROM rooms r WHERE EXISTS (SELECT 1 FROM event_rooms er JOIN event_access ea ON ea.event_id = er.event_id WHERE er.room_id = r.id AND ea.profile_id = ${user.id})`,
     sql`SELECT source_room_id, fallback_room_id, position FROM room_fallbacks ORDER BY position`,
     isAdmin ? sql`SELECT * FROM bookings ORDER BY created_at DESC` : sql`SELECT b.*, CASE WHEN b.profile_id = ${user.id} THEN b.profile_id ELSE 'occupied' END AS visible_profile_id FROM bookings b WHERE b.status = 'confirmed'`,
     user.status === "active" ? sql`SELECT * FROM availability_blocks` : sql`SELECT * FROM availability_blocks WHERE false`,

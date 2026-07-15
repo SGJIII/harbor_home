@@ -218,7 +218,7 @@ function LandingPage() {
           <h2>Less coordinating. More being together.</h2>
           <div className="how-grid">
             <article><span>01</span><CalendarDays /><h3>Choose a weekend</h3><p>Search dates across the homes and see only the spaces that can actually fit your group.</p></article>
-            <article><span>02</span><BedDouble /><h3>Pick your room</h3><p>Reserve one room or several. Every sleeping space has clear capacity and bathroom details.</p></article>
+            <article><span>02</span><BedDouble /><h3>Pick your room</h3><p>Reserve one room or several. Every sleeping space has clear bed and bathroom details.</p></article>
             <article><span>03</span><Mail /><h3>Stay in the loop</h3><p>Confirmations, moves, and party updates arrive in the site and by email.</p></article>
           </div>
         </div>
@@ -342,7 +342,7 @@ function RoomCard({ room, property, range, onBook }: { room: Room; property: Pro
       <div className="room-main">
         <div className="room-title-row"><h3>{room.name}</h3><span className={`status-badge status-${draft ? "draft" : unavailable ? "busy" : "open"}`}>{status}</span></div>
         <p>{room.description}</p>
-        <div className="room-facts"><span>{room.bed}</span><span>•</span><span>{room.bathroom}</span>{room.capacity && <><span>•</span><span>Sleeps {room.capacity}</span></>}</div>
+        <div className="room-facts"><span>{room.bed}</span><span>•</span><span>{room.bathroom}</span></div>
       </div>
       <button className="button button-outline" disabled={draft || unavailable} onClick={() => onBook(room)}>{unavailable ? "Unavailable" : draft ? "Draft" : canRequestPriority ? "Request room" : "Choose room"}</button>
     </article>
@@ -455,7 +455,7 @@ function BookingModal({ room, property, range, onClose }: { room: Room; property
     if (rangeError) return showToast(rangeError, "error");
     const windowError = propertyAvailabilityError(property, range);
     if (windowError) return showToast(windowError, "error");
-    if (room.capacity && partySize > room.capacity) return showToast(`This room sleeps up to ${room.capacity}.`, "error");
+    if (room.capacity && partySize > room.capacity) return showToast("That group is larger than this sleeping space supports.", "error");
     if (contiguousStayLength(state.bookings.filter((booking) => booking.userId === currentUser.id), range) > 7) return showToast("That would create a stay longer than seven nights.", "error");
     const block = isProfileBlocked(currentUser, property.id, range, state.blocks);
     if (block) return showToast(`${block.reason} applies to your category for these dates.`, "error");
@@ -541,7 +541,7 @@ function BookingPage() {
 
   const propertyPanel = property ? (() => {
     const photoSet = propertyPhotoSets[property.slug];
-    const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id));
+    const rooms = state.rooms.filter((room) => property.roomIds.includes(room.id) && room.status === "active");
     const outsideWindow = propertyAvailabilityError(property, range);
     const availabilityLabel = formatAvailabilityWindow(property);
     const standardBookings = state.bookings.filter((booking) => !booking.eventId);

@@ -20,33 +20,22 @@
     {
       "slug": "adu",
       "name": "Rockaway ADU",
-      "description": "A private one-bedroom hideaway with its own bath and a pullout couch.",
-      "bed": "1 bedroom plus pullout couch",
-      "capacity": 4,
-      "bathroom": "Private full bath",
-      "amenities": ["Private entrance", "Pullout couch", "Full bath"],
-      "status": "active",
-      "fallbackRoomSlugs": ["downstairs", "second-spare"]
-    },
-    {
-      "slug": "downstairs",
-      "name": "Downstairs guest room",
-      "description": "A quiet main-house room with a full bathroom immediately next door.",
-      "bed": "King bed",
+      "description": "A private one-bedroom hideaway with its own full bathroom.",
+      "bed": "Bed size to be confirmed",
       "capacity": 2,
-      "bathroom": "Full bath next door",
-      "amenities": ["King bed", "Main house", "Full bath next door"],
+      "bathroom": "Private full bath",
+      "amenities": ["Private entrance", "Full bath"],
       "status": "active",
-      "fallbackRoomSlugs": []
+      "fallbackRoomSlugs": ["second-spare"]
     },
     {
       "slug": "second-spare",
-      "name": "Fourth-floor queen room",
-      "description": "A private queen bedroom on the fourth floor of the main house.",
+      "name": "Upstairs queen room",
+      "description": "A private queen bedroom upstairs in the main house.",
       "bed": "Queen bed",
       "capacity": 2,
       "bathroom": "Shared bath",
-      "amenities": ["Queen bed", "Main house", "Fourth floor"],
+      "amenities": ["Queen bed", "Main house", "Upstairs"],
       "status": "active",
       "fallbackRoomSlugs": []
     },

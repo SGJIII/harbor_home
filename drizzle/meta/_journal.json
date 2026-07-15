@@ -22,6 +22,13 @@
       "when": 1784002500000,
       "tag": "0003_property_booking_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784098800000,
+      "tag": "0004_rockaway_room_updates",
+      "breakpoints": true
     }
   ]
 }
